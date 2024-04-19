@@ -15,11 +15,11 @@ global {
 	///////////////////////////////////////////////
 	//    URBAN SITUATIONS: PLACE HOLD FOR SHAPEFILES
 	////////////////////////////////////////7
-	file shape_file_residential 	<- file("E:/Social-Industrial Symbiosis - SIMTech/progress/week 9/getting data/HDBExistingBuilding_demo/HDBExistingBuilding_demo.shp");	
-	//file shape_file_residential 	<- file("../includes/HDBExistingBuilding_demo_100unit_2res/HDBExistingBuilding_demo.shp");
+	//file shape_file_residential 	<- file("E:/Social-Industrial Symbiosis - SIMTech/progress/week 9/getting data/HDBExistingBuilding_demo/HDBExistingBuilding_demo.shp");	
+	file shape_file_residential 	<- file("../includes/HDBExistingBuilding_demo_100unit_2res/HDBExistingBuilding_demo.shp");
 	file shape_file_productive 		<- file("../includes/Low_Dens/office_demo.shp");	
-	file shape_file_bin 			<- file("E:/Social-Industrial Symbiosis - SIMTech/progress/week 9/getting data/E-wasteCollectionPoints_demo/E-wasteCollectionPoints_demo.shp");	
-	//file shape_file_bin				<- file("../includes/Low_Dens/E-wasteCollectionPoints_demo.shp");	
+	//file shape_file_bin 			<- file("E:/Social-Industrial Symbiosis - SIMTech/progress/week 9/getting data/E-wasteCollectionPoints_demo/E-wasteCollectionPoints_demo.shp");	
+	file shape_file_bin				<- file("../includes/Low_Dens/E-wasteCollectionPoints_demo.shp");
 	geometry shape 					<- envelope(shape_file_bin) + 100;	
 	
 	
@@ -214,7 +214,8 @@ global {
 					
 					location <- any_location_in(home_place);
 					my_place <- location;
-										
+					
+					
 					// Set the distance to different bins
 					near_bin_org <- bin where (each.type = "ORG")		closest_to(self);			
 					float dist_bin_org <- self distance_to near_bin_org		with_precision(1);
@@ -560,7 +561,6 @@ species house_hold schedules: []{ //
 	int filling_peep;
 	// End- initialization variables	
 	
-	//variables to track three types of waste
 	float mix_max <- rnd(1.0,1.5);// In Kg
 	float mix_cc;
 	int mix_tick <-0;
@@ -663,6 +663,8 @@ species collector  schedules: [] {  //
 
 	
 	reflex restart when: (cycle>1) and every(3# cycle){
+
+
 		
 		// In kgrams
 		from_prod_org <- from_prod_org + (prod_build sum_of(each.org_cc)) with_precision(2);
@@ -674,7 +676,9 @@ species collector  schedules: [] {  //
 		
 		
 		ask prod_build {
+				
 		
+
 			org_cc <- 0.0;
 			mix_cc <- 0.0;
 			pak_cc <- 0.0;			
@@ -707,20 +711,19 @@ species collector  schedules: [] {  //
 
 
 
-	// Tracking the waste disposal in each type of bin, every time they are collected 
+	
 	reflex clean_frequent when: ((cycle>1) and every(collect_freq# cycle) and clean_on) or 
 								every(1094 #cycle) {
 		
-		// In grams, total amount of waste from each type of bin
+		// In grams
 		from_res_org <- from_res_org + (bin where (each.type='ORG') sum_of(each.current_cap)) with_precision(2);
 		from_res_mix <- from_res_mix + (bin where (each.type='MIX') sum_of(each.current_cap)) with_precision(2);
 		from_res_pak <- from_res_pak + (bin where (each.type='PAK') sum_of(each.current_cap)) with_precision(2);
 		
 		
-		// In grams, total amoutn of waste
+		// In grams
 		from_res_total <- from_res_org + from_res_mix + from_res_pak;
 		
-		// Tracking each type of waste in each type of bin
 		// org
 		res_org_IN_org <- res_org_IN_org + (bin where (each.type='ORG') sum_of(each.org)) with_precision(2);
 		res_mix_IN_org <- res_mix_IN_org + (bin where (each.type='ORG') sum_of(each.mix)) with_precision(2);
@@ -738,7 +741,6 @@ species collector  schedules: [] {  //
 		res_mix_IN_pak <- res_mix_IN_pak + (bin where (each.type='PAK') sum_of(each.mix)) with_precision(2);
 		res_pak_IN_pak <- res_pak_IN_pak + (bin where (each.type='PAK') sum_of(each.pak)) with_precision(2);
 			
-		// Percentage of corrected sorting	
 		try{KPI_org <- ((res_org_IN_org/from_res_org)*100) with_precision(2);}
 		try{KPI_mix <- ((res_mix_IN_mix/from_res_mix)*100) with_precision(2);}	
 		try{KPI_pak <- ((res_pak_IN_pak/from_res_pak)*100) with_precision(2);}
@@ -746,7 +748,7 @@ species collector  schedules: [] {  //
 		try{KPI_avg <- (KPI_pak + KPI_mix + KPI_org)/3 with_precision(2);}
 
 
-		// reset the bin 	
+			
 		ask bin {
 			used 		<- 	0;
 			org 		<- 	0.0;
@@ -755,12 +757,13 @@ species collector  schedules: [] {  //
 			current_cap <-	0.0;				
 		}
 		
+
+
 		
 	}
 	
 	
-	// what is the purpose of the action empty_n_clean?
-	// Only called in the beginning
+	
 	action empty_n_clean {
 		from_res_org <- from_res_org + bin where (each.type='ORG') sum_of(each.current_cap)  with_precision(2);
 		from_res_mix <- from_res_mix + bin where (each.type='MIX') sum_of(each.current_cap)  with_precision(2);
@@ -789,9 +792,16 @@ species collector  schedules: [] {  //
 			mix 		<- 	0.0;
 			pak 		<- 	0.0;
 			current_cap <-	0.0;				
-		}		
+		}
+			
+		
+		
+	
 		
 	}
+	
+	
+	
 	
 }
 
@@ -821,10 +831,9 @@ species resident schedules: [] { //
 	bool head_work 	<- false;
 	bool at_work 	<- false;
 	bool work_done <- at_work? true:false;
-	int q_consume; //what is q_consume used for?
+	int q_consume;
 	
 	
-	// restart after one day
 	reflex restart when: (cycle>1) and every(3# cycle){
 
 		head_work				<- flip(early_start_proba) ? true:false;
@@ -881,15 +890,15 @@ species resident schedules: [] { //
 	//////////////////////////////////////////////////////
 	//// GET WASTE
 	/////////////////////////////////////
-	float set_consumption_org min:0.0 max:1.0;	// percentage of waste generation per time period (in one day)	
+	float set_consumption_org min:0.0 max:1.0;		
 	float set_consumption_pak min:0.0 max:1.0;	
 	float set_consumption_mix min:0.0 max:1.0;
 	
-	int budget_org; //total amount of waste generated per day (3 time periods)
+	int budget_org;
 	int budget_mix;
 	int budget_pak;	
 	
-	int current_org; //amount of waste generation for the current time period
+	int current_org;
 	int current_mix;
 	int current_pak;	
 	
@@ -1071,7 +1080,7 @@ species resident schedules: [] { //
 	float my_waste_community;
 	int media_beh 				<- int(gauss(50,2)) 				min:0 		max:100;
 	
- 
+
 	action social_norm {
 
 		
@@ -1565,7 +1574,6 @@ species resident schedules: [] { //
 	// This means that waste is not sorted	
 	action transfer_org_out {		
 		//		Penalty		
-		// percentage of miss sorting, if it is more than a threshold
 		if (((h_unit.mix_in_org + h_unit.pak_in_org) / (h_unit.org_cc + 0.001)) >= thold_wrong_org) { /// 0.001 secures that the division is not 0
 	
 			
@@ -1578,7 +1586,7 @@ species resident schedules: [] { //
 			near_bin_mix.pak <- near_bin_mix.pak + h_unit.pak_in_org;
 			
 		}
-		// sorted correctly
+		
 		else {				
 				
 			near_bin_org.current_cap <- near_bin_org.current_cap +  h_unit.org_cc;		
@@ -1911,13 +1919,13 @@ experiment waste_sort type: gui {
 		
 		display "Waste sorting behaviour value"  type:2d{
 			
-//			chart "Behaviour distribution" type:histogram
-//			 	x_serie_labels: ["Behaviour"]
-//			 	series_label_position: xaxis
-//			 	{ 
-//			 		datalist value:(distribution_of(resident collect each.behaviour,20,0,100) at "values")
-//			 		 legend:(distribution_of(resident collect each.behaviour,20,0,100) at "legend"); 				 
-//			 }				
+			chart "Behaviour distribution" type:histogram
+			 	x_serie_labels: ["Behaviour"]
+			 	series_label_position: xaxis
+			 	{ 
+			 		datalist value:(distribution_of(resident collect each.behaviour,20,0,100) at "values")
+			 		 legend:(distribution_of(resident collect each.behaviour,20,0,100) at "legend"); 				 
+			 }				
 			
 		}
 		

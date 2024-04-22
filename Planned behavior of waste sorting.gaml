@@ -634,7 +634,7 @@ species bin  schedules: [] {//
 	float current_cap;
 	int used;
 	
-	matrix waste <- matrix ([0, 0, 0]);
+	matrix waste <- matrix ([0.0, 0.0, 0.0]);
 
 	//float org;
 	//float waste[0];
@@ -1578,7 +1578,9 @@ species resident schedules: [] { //
 	// Since residents can throw waste incorrectly, if the percentage of miss soring is more than 50%
 	// This means that waste is not sorted	
 	action transfer_org_out {		
-		//		Penalty		
+		//		Penalty
+		
+		write "Transfer Org out";		
 		if (((h_unit.mix_in_org + h_unit.pak_in_org) / (h_unit.org_cc + 0.001)) >= thold_wrong_org) { /// 0.001 secures that the division is not 0
 	
 			
@@ -1593,7 +1595,6 @@ species resident schedules: [] { //
 		}
 		
 		else {				
-				
 			near_bin_org.current_cap <- near_bin_org.current_cap +  h_unit.org_cc;		
 			near_bin_org.used <- near_bin_org.used + 1;
 			
@@ -1601,6 +1602,8 @@ species resident schedules: [] { //
 			near_bin_org.waste[0] <- near_bin_org.waste[0] + h_unit.org_in_org;
 			near_bin_org.waste[1] <- near_bin_org.waste[1] + h_unit.mix_in_org;
 			near_bin_org.waste[2] <- near_bin_org.waste[2] + h_unit.pak_in_org;
+			
+			write "Transfer org out correct, amount s" + h_unit.org_in_org + near_bin_org.waste[0] + near_bin_org.waste[1] + near_bin_org.waste[2];
 		
 		}
 	

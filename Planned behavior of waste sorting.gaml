@@ -237,9 +237,9 @@ global {
 					
 										
 					// Load initial values of waste
-					budget_org <- int(gauss(org_day, org_day_sd));
-					budget_mix <- int(gauss(mix_day, mix_day_sd));
-					budget_pak <- int(gauss(pak_day, pak_day_sd));
+					budget_waste[0] <- int(gauss(org_day, org_day_sd));
+					budget_waste[1] <- int(gauss(mix_day, mix_day_sd));
+					budget_waste[2] <- int(gauss(pak_day, pak_day_sd));
 					
 					//behaviour <- gauss(80,10);					
 					mean_dist <- (0.5*dist_bin_org +0.1*dist_bin_mix  + 0.3* dist_bin_pak) with_precision(2);	
@@ -431,29 +431,29 @@ global {
         
         
         	// kPIS
-        	write "Org in org: " +  (res_org_IN_org/(res_org_IN_org + res_org_IN_mix + res_org_IN_pak))*100;
-        	write "Mix in mix: " +  (res_mix_IN_mix/(res_mix_IN_mix + res_mix_IN_pak + res_mix_IN_org))*100;
-        	write "Pak in pak: " +  (res_pak_IN_pak/(res_pak_IN_pak + res_pak_IN_mix + res_pak_IN_org))*100;
+        	write "Org in org: " +  (res_waste_in_bin[0, 0]/(res_waste_in_bin[0, 0] + res_waste_in_bin[0, 1] + res_waste_in_bin[0, 2]))*100;
+        	write "Mix in mix: " +  (res_waste_in_bin[1, 1]/(res_waste_in_bin[1, 1] + res_waste_in_bin[1, 2] + res_waste_in_bin[1, 0]))*100;
+        	write "Pak in pak: " +  (res_waste_in_bin[2, 2]/(res_waste_in_bin[2, 2] + res_waste_in_bin[2, 1] + res_waste_in_bin[2, 0]))*100;
         	
-        	write "Average: " +    (((res_org_IN_org/(res_org_IN_org + res_org_IN_mix + res_org_IN_pak)) +  
-        							(res_mix_IN_mix/(res_mix_IN_mix + res_mix_IN_pak + res_mix_IN_org)) +
-        							(res_pak_IN_pak/(res_pak_IN_pak + res_pak_IN_mix + res_pak_IN_org)))/3)*100;
+        	write "Average: " +    (((res_waste_in_bin[0, 0]/(res_waste_in_bin[0, 0] + res_waste_in_bin[0, 1] + res_waste_in_bin[0, 2])) +  
+        							(res_waste_in_bin[1, 1]/(res_waste_in_bin[1, 1] + res_waste_in_bin[1, 2] + res_waste_in_bin[1, 0])) +
+        							(res_waste_in_bin[2, 2]/(res_waste_in_bin[2, 2] + res_waste_in_bin[2, 1] + res_waste_in_bin[2, 0])))/3)*100;
         							
         							
         	// The variables below are used to calculate KPIs
         	// KPI ORG -> Calculates the percentage of properly sorted organics						
-        	global_kpi_org <- (res_org_IN_org/(res_org_IN_org + res_org_IN_mix + res_org_IN_pak))*100 with_precision(2);
+        	global_kpi_org <- (res_waste_in_bin[0, 0]/(res_waste_in_bin[0, 0] + res_waste_in_bin[0, 1] + res_waste_in_bin[0, 2]))*100 with_precision(2);
         	
         	// KPI MIX -> Calculates the percentage of properly sorted residuals
-        	global_kpi_mix <- (res_mix_IN_mix/(res_mix_IN_mix + res_mix_IN_pak + res_mix_IN_org))*100 with_precision(2);
+        	global_kpi_mix <- (res_waste_in_bin[1, 1]/(res_waste_in_bin[1, 1] + res_waste_in_bin[1, 2] + res_waste_in_bin[1, 0]))*100 with_precision(2);
         	
         	// KPI PAK -> Calculates the percentage of properly sorted recyclables
-        	global_kpi_pak <- (res_pak_IN_pak/(res_pak_IN_pak + res_pak_IN_mix + res_pak_IN_org))*100 with_precision(2);
+        	global_kpi_pak <- (res_waste_in_bin[2, 2]/(res_waste_in_bin[2, 2] + res_waste_in_bin[2, 1] + res_waste_in_bin[2, 0]))*100 with_precision(2);
         	
         	// KPI ORG -> Calculates the Average of the KPIs
-        	global_kpi_avg <-  (((res_org_IN_org/(res_org_IN_org + res_org_IN_mix + res_org_IN_pak)) +  
-        							(res_mix_IN_mix/(res_mix_IN_mix + res_mix_IN_pak + res_mix_IN_org)) +
-        							(res_pak_IN_pak/(res_pak_IN_pak + res_pak_IN_mix + res_pak_IN_org)))/3)*100 with_precision(2);
+        	global_kpi_avg <-  (((res_waste_in_bin[0, 0]/(res_waste_in_bin[0, 0] + res_waste_in_bin[0, 1] + res_waste_in_bin[0, 2])) +  
+        							(res_waste_in_bin[1, 1]/(res_waste_in_bin[1, 1] + res_waste_in_bin[1, 2] + res_waste_in_bin[1, 0])) +
+        							(res_waste_in_bin[2, 2]/(res_waste_in_bin[2, 2] + res_waste_in_bin[2, 1] + res_waste_in_bin[2, 0])))/3)*100 with_precision(2);
 	
 			
 			// After the year, and the values of the variables are transfered, 
@@ -462,15 +462,15 @@ global {
 			from_res_org 			<-0.0;
 			from_res_mix 			<-0.0;
 			from_res_pak 			<-0.0;
-			res_org_IN_org 			<-0.0;
-			res_mix_IN_org 			<-0.0;
-			res_pak_IN_org 			<-0.0;
-			res_org_IN_mix 			<-0.0;
-			res_mix_IN_mix 			<-0.0;
-			res_pak_IN_mix 			<-0.0;
-			res_org_IN_pak 			<-0.0;
-			res_mix_IN_pak 			<-0.0;
-			res_pak_IN_pak 			<-0.0;			
+			res_waste_in_bin[0, 0] 			<-0.0;
+			res_waste_in_bin[1, 0] 			<-0.0;
+			res_waste_in_bin[2, 0] 			<-0.0;
+			res_waste_in_bin[0, 1] 			<-0.0;
+			res_waste_in_bin[1, 1] 			<-0.0;
+			res_waste_in_bin[2, 1] 			<-0.0;
+			res_waste_in_bin[0, 2] 			<-0.0;
+			res_waste_in_bin[1, 2] 			<-0.0;
+			res_waste_in_bin[2, 2] 			<-0.0;			
 			KPI_org 				<-0.0;
 			KPI_mix 				<-0.0;
 			KPI_pak 				<-0.0;
@@ -713,15 +713,15 @@ species collector  schedules: [] {  //
 	//matrix to track the type of waste in bins
 	matrix res_waste_in_bin <- 0.0 as_matrix({3, 3});
 	
-	float res_org_IN_org;
-	float res_mix_IN_org;
-	float res_pak_IN_org;
-	float res_org_IN_mix;
-	float res_mix_IN_mix;
-	float res_pak_IN_mix;
-	float res_org_IN_pak;
-	float res_mix_IN_pak;
-	float res_pak_IN_pak;
+	//float res_waste_in_bin[0, 0]; //res_org_IN_org
+//	float res_waste_in_bin[1, 0]; //res_mix_IN_org
+//	float res_waste_in_bin[2, 0]; //res_pak_IN_org
+//	float res_waste_in_bin[0, 1]; //res_org_IN_mix
+//	float res_waste_in_bin[1, 1]; //res_mix_IN_mix
+//	float res_waste_in_bin[2, 1]; //res_pak_IN_mix
+//	float res_waste_in_bin[0, 2]; //res_org_IN_pak
+//	float res_waste_in_bin[1, 2]; //res_mix_IN_pak
+//	float res_waste_in_bin[2, 2]; //res_pak_IN_pak
 	
 	float KPI_org;
 	float KPI_mix;
@@ -745,25 +745,25 @@ species collector  schedules: [] {  //
 		from_res_total <- from_res_org + from_res_mix + from_res_pak;
 		
 		// org
-		res_org_IN_org <- res_org_IN_org + (bin where (each.type='ORG') sum_of(each.waste[0])) with_precision(2);
-		res_mix_IN_org <- res_mix_IN_org + (bin where (each.type='ORG') sum_of(each.waste[1])) with_precision(2);
-		res_pak_IN_org <- res_pak_IN_org + (bin where (each.type='ORG') sum_of(each.waste[2])) with_precision(2);
+		res_waste_in_bin[0, 0] <- res_waste_in_bin[0, 0] + (bin where (each.type='ORG') sum_of(each.waste[0])) with_precision(2);
+		res_waste_in_bin[1, 0] <- res_waste_in_bin[1, 0] + (bin where (each.type='ORG') sum_of(each.waste[1])) with_precision(2);
+		res_waste_in_bin[2, 0] <- res_waste_in_bin[2, 0] + (bin where (each.type='ORG') sum_of(each.waste[2])) with_precision(2);
 				
 			
 		// mix
-		res_org_IN_mix <- res_org_IN_mix + (bin where (each.type='MIX') sum_of(each.waste[0])) with_precision(2);
-		res_mix_IN_mix <- res_mix_IN_mix + (bin where (each.type='MIX') sum_of(each.waste[1])) with_precision(2);
-		res_pak_IN_mix <- res_pak_IN_mix + (bin where (each.type='MIX') sum_of(each.waste[2])) with_precision(2);
+		res_waste_in_bin[0, 1] <- res_waste_in_bin[0, 1] + (bin where (each.type='MIX') sum_of(each.waste[0])) with_precision(2);
+		res_waste_in_bin[1, 1] <- res_waste_in_bin[1, 1] + (bin where (each.type='MIX') sum_of(each.waste[1])) with_precision(2);
+		res_waste_in_bin[2, 1] <- res_waste_in_bin[2, 1] + (bin where (each.type='MIX') sum_of(each.waste[2])) with_precision(2);
 
 			
 		// pak
-		res_org_IN_pak <- res_org_IN_pak + (bin where (each.type='PAK') sum_of(each.waste[0])) with_precision(2);
-		res_mix_IN_pak <- res_mix_IN_pak + (bin where (each.type='PAK') sum_of(each.waste[1])) with_precision(2);
-		res_pak_IN_pak <- res_pak_IN_pak + (bin where (each.type='PAK') sum_of(each.waste[2])) with_precision(2);
+		res_waste_in_bin[0, 2] <- res_waste_in_bin[0, 2] + (bin where (each.type='PAK') sum_of(each.waste[0])) with_precision(2);
+		res_waste_in_bin[1, 2] <- res_waste_in_bin[1, 2] + (bin where (each.type='PAK') sum_of(each.waste[1])) with_precision(2);
+		res_waste_in_bin[2, 2] <- res_waste_in_bin[2, 2] + (bin where (each.type='PAK') sum_of(each.waste[2])) with_precision(2);
 			
-		try{KPI_org <- ((res_org_IN_org/from_res_org)*100) with_precision(2);}
-		try{KPI_mix <- ((res_mix_IN_mix/from_res_mix)*100) with_precision(2);}	
-		try{KPI_pak <- ((res_pak_IN_pak/from_res_pak)*100) with_precision(2);}
+		try{KPI_org <- ((res_waste_in_bin[0, 0]/from_res_org)*100) with_precision(2);}
+		try{KPI_mix <- ((res_waste_in_bin[1, 1]/from_res_mix)*100) with_precision(2);}	
+		try{KPI_pak <- ((res_waste_in_bin[2, 2]/from_res_pak)*100) with_precision(2);}
 		
 		try{KPI_avg <- (KPI_pak + KPI_mix + KPI_org)/3 with_precision(2);}
 
@@ -792,19 +792,19 @@ species collector  schedules: [] {  //
 		from_res_total <- (from_res_org + from_res_mix + from_res_pak); //*0.001
 			
 		// org
-		res_org_IN_org <- from_res_org + bin where (each.type='ORG') sum_of(each.waste[0])  with_precision(2);
-		res_mix_IN_org <- from_res_mix + bin where (each.type='ORG') sum_of(each.waste[1])  with_precision(2);
-		res_pak_IN_org <- from_res_pak + bin where (each.type='ORG') sum_of(each.waste[2])  with_precision(2);
+		res_waste_in_bin[0, 0] <- from_res_org + bin where (each.type='ORG') sum_of(each.waste[0])  with_precision(2);
+		res_waste_in_bin[1, 0] <- from_res_mix + bin where (each.type='ORG') sum_of(each.waste[1])  with_precision(2);
+		res_waste_in_bin[2, 0] <- from_res_pak + bin where (each.type='ORG') sum_of(each.waste[2])  with_precision(2);
 			
 		// org
-		res_org_IN_mix <- from_res_org + bin where (each.type='MIX') sum_of(each.waste[0])  with_precision(2);
-		res_mix_IN_mix <- from_res_mix + bin where (each.type='MIX') sum_of(each.waste[1])  with_precision(2);
-		res_pak_IN_mix <- from_res_pak + bin where (each.type='MIX') sum_of(each.waste[2])  with_precision(2);
+		res_waste_in_bin[0, 1] <- from_res_org + bin where (each.type='MIX') sum_of(each.waste[0])  with_precision(2);
+		res_waste_in_bin[1, 1] <- from_res_mix + bin where (each.type='MIX') sum_of(each.waste[1])  with_precision(2);
+		res_waste_in_bin[2, 1] <- from_res_pak + bin where (each.type='MIX') sum_of(each.waste[2])  with_precision(2);
 			
 		// org
-		res_org_IN_pak <- from_res_org + bin where (each.type='PAK') sum_of(each.waste[0])  with_precision(2);
-		res_mix_IN_pak <- from_res_mix + bin where (each.type='PAK') sum_of(each.waste[1])  with_precision(2);
-		res_pak_IN_pak <- from_res_pak + bin where (each.type='PAK') sum_of(each.waste[2])  with_precision(2);
+		res_waste_in_bin[0, 2] <- from_res_org + bin where (each.type='PAK') sum_of(each.waste[0])  with_precision(2);
+		res_waste_in_bin[1, 2] <- from_res_mix + bin where (each.type='PAK') sum_of(each.waste[1])  with_precision(2);
+		res_waste_in_bin[2, 2] <- from_res_pak + bin where (each.type='PAK') sum_of(each.waste[2])  with_precision(2);
 			
 		ask bin {
 			used 		<- 	0;
@@ -835,6 +835,8 @@ species resident schedules: [] { //
 	prod_build work_place;		
 	house_hold h_unit;
 
+	matrix<bin> near_bin;
+	
 	bin near_bin_org;
 	bin near_bin_mix;
 	bin near_bin_pak;	
@@ -910,17 +912,23 @@ species resident schedules: [] { //
 	//////////////////////////////////////////////////////
 	//// GET WASTE
 	/////////////////////////////////////
+	
+	
+	//will come back to you later
+	matrix set_consumption <- 0.0 as_matrix({3, 3});
 	float set_consumption_org min:0.0 max:1.0;		
 	float set_consumption_pak min:0.0 max:1.0;	
 	float set_consumption_mix min:0.0 max:1.0;
 	
-	int budget_org;
-	int budget_mix;
-	int budget_pak;	
+	matrix<int> budget_waste <- matrix([0, 0, 0]);
+	//int budget_waste[0]; //budget_org
+	//int budget_waste[1]; //budget_mix
+	//int budget_waste[2];	//budget_pak
 	
-	int current_org;
-	int current_mix;
-	int current_pak;	
+	matrix<int> current_waste <- matrix([0, 0, 0]);
+//	int current_waste[0]; //current_org
+//	int current_waste[1]; //current_mix
+//	int current_waste[2]; //current_pak
 	
 	/// This is the main waste generation mechanims.
 	// The proportions of waste generation vary along the day
@@ -944,16 +952,16 @@ species resident schedules: [] { //
 		// to the current waste of different types
 		
 		//////////////////////////// ORG /////////////////////////
-		current_org 		<- int(budget_org * set_consumption_org);	
-		budget_org 			<- budget_org - current_org;		
+		current_waste[0] 		<- int(budget_waste[0] * set_consumption_org);	
+		budget_waste[0] 			<- budget_waste[0] - current_waste[0];		
 
 		//////////////////////////// MIX /////////////////////////
-		current_mix 			<- int(budget_mix * set_consumption_mix); 		
-		budget_mix 				<- budget_mix - current_mix;
+		current_waste[1] 			<- int(budget_waste[1] * set_consumption_mix); 		
+		budget_waste[1] 				<- budget_waste[1] - current_waste[1];
 		
 		//////////////////////////// PAK /////////////////////////
-		current_pak 			<- int(budget_pak * set_consumption_pak); 		
-		budget_pak 				<- budget_pak - current_pak;	
+		current_waste[2] 			<- int(budget_waste[2] * set_consumption_pak); 		
+		budget_waste[2] 				<- budget_waste[2] - current_waste[2];	
 				
 		// Q waste is added one, so next time a different amount of waste gets assigned
 		q_consume <- q_consume + 1;		
@@ -963,9 +971,9 @@ species resident schedules: [] { //
 	// consume the last part of waste not consumed during the preious steps
 	action get_d_rest {
 
-		current_org <- budget_org;
-		current_pak <- budget_pak;
-		current_mix <- budget_mix;	
+		current_waste[0] <- budget_waste[0];
+		current_waste[2] <- budget_waste[2];
+		current_waste[1] <- budget_waste[1];	
 		
 		// After the consumption of all waste is dones, q_consume variable is set to 0
 		// q_consume is the trigger that defines the percentage of waste to get during the day
@@ -976,9 +984,9 @@ species resident schedules: [] { //
 	//This action is used to generate new waste,
 	// This action is casted in the restart reflex which occurs very day
 	action reset_waste_budget {
-		budget_org <- int(gauss(org_day, org_day_sd));
-		budget_mix <- int(gauss(mix_day, mix_day_sd));
-		budget_pak <- int(gauss(pak_day, pak_day_sd));
+		budget_waste[0] <- int(gauss(org_day, org_day_sd));
+		budget_waste[1] <- int(gauss(mix_day, mix_day_sd));
+		budget_waste[2] <- int(gauss(pak_day, pak_day_sd));
 	
 		
 	}
@@ -1020,8 +1028,8 @@ species resident schedules: [] { //
 						gauss(int_2_beh_b,int_2_beh_se) * intention +
 					 	gauss(pbc_2_beh_b,pbc_2_beh_se) * pbc +					 	
 					 	gauss(know_2_beh_b,know_2_beh_se) * know +					 	
-					 	gauss(dist_2_beh_b,dist_2_beh_se) * (mean_dist*dist_fine_tune) + 
-					 	gauss(pant_2_beh_b,pant_2_beh_se) * PANT)/beh_fine_tune ;					 	
+					 	gauss(dist_2_beh_b,dist_2_beh_se) * (mean_dist*dist_fine_tune)) / beh_fine_tune ;
+					 	//gauss(pant_2_beh_b,pant_2_beh_se) * PANT)/beh_fine_tune ;					 	
 			}	
 			
 	///////////////////////
@@ -1243,10 +1251,14 @@ species resident schedules: [] { //
 	string beh_label;
 	int beh_level;
 	
+	matrix<int> p_throw <- 0.0 as_matrix({3, 3, 3});
+	
+	
 	int p_mix_in_mix min:0 max:100;
 	int p_mix_in_org min:0 max:100;
 	int	p_mix_in_pak min:0 max:100;
 		
+	//int	p_org_in_org min:0 max:100;
 	int	p_org_in_org min:0 max:100;
 	int	p_org_in_mix min:0 max:100;
 	int	p_org_in_pak min:0 max:100;
@@ -1449,9 +1461,9 @@ species resident schedules: [] { //
 	// the waste generated is set to 0
 	action reset_currents {
 		
-		current_org <-0;
-		current_mix <-0;
-		current_pak <-0;
+		current_waste[0] <-0;
+		current_waste[1] <-0;
+		current_waste[2] <-0;
 		org_dumped <- false;
 		mix_dumped <- false;
 		pak_dumped <- false;
@@ -1469,8 +1481,8 @@ species resident schedules: [] { //
 		if(flip(p_org_in_org/100) and not(org_dumped)) {
 		//if(p_org_in_org >= rnd_num and not(org_dumped)) {
 
-			h_unit.org_cc 			<- h_unit.org_cc + current_org*0.001;
-			h_unit.waste_in_bin[0, 0]		<- h_unit.waste_in_bin[0, 0] + current_org*0.001;		
+			h_unit.org_cc 			<- h_unit.org_cc + current_waste[0]*0.001;
+			h_unit.waste_in_bin[0, 0]		<- h_unit.waste_in_bin[0, 0] + current_waste[0]*0.001;		
 			if (h_unit.org_tick = 0) {h_unit.org_tick <- 1;} 
 			org_dumped <- true;
 		}		
@@ -1478,8 +1490,8 @@ species resident schedules: [] { //
 		if(flip(p_org_in_mix/100) and not(org_dumped)) {
 		//if(p_org_in_mix >= rnd_num  and not(org_dumped)) {
 
-			h_unit.mix_cc 			<- h_unit.mix_cc + current_org*0.001;
-			h_unit.waste_in_bin[0, 1]		<- h_unit.waste_in_bin[0, 1] + current_org*0.001;
+			h_unit.mix_cc 			<- h_unit.mix_cc + current_waste[0]*0.001;
+			h_unit.waste_in_bin[0, 1]		<- h_unit.waste_in_bin[0, 1] + current_waste[0]*0.001;
 			if (h_unit.mix_tick = 0) {h_unit.mix_tick <- 1;} 	
 			org_dumped <- true;		
 		}
@@ -1487,24 +1499,24 @@ species resident schedules: [] { //
 		////////// Throw residuals
 		if(flip(p_mix_in_mix/100) and not(mix_dumped)) {			
 
-			h_unit.mix_cc 			<- h_unit.mix_cc + current_mix*0.001;
-			h_unit.waste_in_bin[1, 1]		<- h_unit.waste_in_bin[1, 1] + current_mix*0.001;	
+			h_unit.mix_cc 			<- h_unit.mix_cc + current_waste[1]*0.001;
+			h_unit.waste_in_bin[1, 1]		<- h_unit.waste_in_bin[1, 1] + current_waste[1]*0.001;	
 			if (h_unit.mix_tick = 0) {h_unit.mix_tick <- 1;} 
 			mix_dumped <- true;	
 		}
 		
 		if(flip(p_mix_in_org/100)  and not(mix_dumped)) {	
 				
-			h_unit.org_cc 			<- h_unit.org_cc + current_mix*0.001;
-			h_unit.waste_in_bin[1, 0]		<- h_unit.waste_in_bin[1, 0] + current_mix*0.001;
+			h_unit.org_cc 			<- h_unit.org_cc + current_waste[1]*0.001;
+			h_unit.waste_in_bin[1, 0]		<- h_unit.waste_in_bin[1, 0] + current_waste[1]*0.001;
 			if (h_unit.org_tick = 0) {h_unit.org_tick <- 1;} 	
 			mix_dumped <- true;	
 		}		
 		
 		if(flip(p_mix_in_pak/100) and not(mix_dumped)) {	
 
-			h_unit.pak_cc 			<- h_unit.pak_cc + current_mix*0.001;
-			h_unit.waste_in_bin[1, 2]		<- h_unit.waste_in_bin[1, 2] + current_mix*0.001;		
+			h_unit.pak_cc 			<- h_unit.pak_cc + current_waste[1]*0.001;
+			h_unit.waste_in_bin[1, 2]		<- h_unit.waste_in_bin[1, 2] + current_waste[1]*0.001;		
 			if (h_unit.pak_tick = 0) {h_unit.pak_tick <- 1;} 	
 			mix_dumped <- true;	
 		}
@@ -1512,16 +1524,16 @@ species resident schedules: [] { //
 		////////// Throw packages
 		if(flip(p_pak_in_pak/100) and not(pak_dumped)) {		
 
-			h_unit.pak_cc 			<- h_unit.pak_cc + current_pak*0.001;
-			h_unit.waste_in_bin[2, 2]		<- h_unit.waste_in_bin[2, 2] + current_pak*0.001;		
+			h_unit.pak_cc 			<- h_unit.pak_cc + current_waste[2]*0.001;
+			h_unit.waste_in_bin[2, 2]		<- h_unit.waste_in_bin[2, 2] + current_waste[2]*0.001;		
 			if (h_unit.pak_tick = 0) {h_unit.pak_tick <- 1;} 	
 			pak_dumped <- true;
 		}		
 		
 		if(flip(p_pak_in_mix/100) and not(pak_dumped)) {
 		
-			h_unit.mix_cc 			<- h_unit.mix_cc + current_pak*0.001;
-			h_unit.waste_in_bin[2, 1]		<- h_unit.waste_in_bin[2, 1] + current_pak*0.001;	
+			h_unit.mix_cc 			<- h_unit.mix_cc + current_waste[2]*0.001;
+			h_unit.waste_in_bin[2, 1]		<- h_unit.waste_in_bin[2, 1] + current_waste[2]*0.001;	
 			if (h_unit.mix_tick = 0) {h_unit.mix_tick <- 1;} 	
 			pak_dumped <- true;	
 		}
@@ -1530,8 +1542,8 @@ species resident schedules: [] { //
 	// In case the probabilities all pass and nothing has passed
 	if not(org_dumped) {
 		
-		h_unit.mix_cc 			<- h_unit.mix_cc + current_org*0.001;
-		h_unit.waste_in_bin[0, 1]		<- h_unit.waste_in_bin[0, 1] + current_org*0.001;
+		h_unit.mix_cc 			<- h_unit.mix_cc + current_waste[0]*0.001;
+		h_unit.waste_in_bin[0, 1]		<- h_unit.waste_in_bin[0, 1] + current_waste[0]*0.001;
 		if (h_unit.mix_tick = 0) {h_unit.mix_tick <- 1;} 	
 		org_dumped <- true;		
 		}
@@ -1539,23 +1551,23 @@ species resident schedules: [] { //
 	if not(mix_dumped) {
 		if flip(0.8) {
 		
-			h_unit.org_cc 			<- h_unit.org_cc + current_mix*0.001;
-			h_unit.waste_in_bin[1, 0]		<- h_unit.waste_in_bin[1, 0] + current_mix*0.001;
+			h_unit.org_cc 			<- h_unit.org_cc + current_waste[1]*0.001;
+			h_unit.waste_in_bin[1, 0]		<- h_unit.waste_in_bin[1, 0] + current_waste[1]*0.001;
 			if (h_unit.org_tick = 0) {h_unit.org_tick <- 1;} 	
 			mix_dumped <- true;		
 			}
 		else {
 			
-			h_unit.pak_cc 			<- h_unit.pak_cc + current_mix*0.001;
-			h_unit.waste_in_bin[1, 2]		<- h_unit.waste_in_bin[1, 2] + current_mix*0.001;		
+			h_unit.pak_cc 			<- h_unit.pak_cc + current_waste[1]*0.001;
+			h_unit.waste_in_bin[1, 2]		<- h_unit.waste_in_bin[1, 2] + current_waste[1]*0.001;		
 			if (h_unit.pak_tick = 0) {h_unit.pak_tick <- 1;} 	
 			mix_dumped <- true;				
 		}
 	}
 	
 	if not(pak_dumped) {
-		h_unit.mix_cc 			<- h_unit.mix_cc + current_pak*0.001;
-		h_unit.waste_in_bin[2, 1]		<- h_unit.waste_in_bin[2, 1] + current_pak*0.001;	
+		h_unit.mix_cc 			<- h_unit.mix_cc + current_waste[2]*0.001;
+		h_unit.waste_in_bin[2, 1]		<- h_unit.waste_in_bin[2, 1] + current_waste[2]*0.001;	
 		if (h_unit.mix_tick = 0) {h_unit.mix_tick <- 1;} 	
 		pak_dumped <- true;
 	}
@@ -1578,13 +1590,13 @@ species resident schedules: [] { //
 	action throw_prod {
 
 		////////// Throw organics
-		work_place.org_cc 			<- work_place.org_cc + current_org*0.001;	
+		work_place.org_cc 			<- work_place.org_cc + current_waste[0]*0.001;	
 					
 		////////// Throw residuals	
-		work_place.mix_cc 			<- work_place.mix_cc + current_mix*0.001;				
+		work_place.mix_cc 			<- work_place.mix_cc + current_waste[1]*0.001;				
 		
 		////////// Throw packages
-		work_place.pak_cc 			<- work_place.pak_cc + current_pak*0.001;	
+		work_place.pak_cc 			<- work_place.pak_cc + current_waste[2]*0.001;	
 		
 	}
 	
@@ -1592,10 +1604,14 @@ species resident schedules: [] { //
 	// The action of transfering waste out is divided by waste types
 	// Since residents can throw waste incorrectly, if the percentage of miss soring is more than 50%
 	// This means that waste is not sorted	
+	
+	int	a min:0 max:100;
 	action transfer_org_out {		
 		//		Penalty
 		
-		write "Transfer Org out";		
+		a <- 150;
+		
+		write "Transfer Org out " + a;		
 		if (((h_unit.waste_in_bin[1, 0] + h_unit.waste_in_bin[2, 0]) / (h_unit.org_cc + 0.001)) >= thold_wrong_org) { /// 0.001 secures that the division is not 0
 	
 			
@@ -1994,17 +2010,17 @@ experiment waste_sort type: gui {
 			 {
 				datalist value:[
 					
-					[	(collector  collect each.res_org_IN_org),
-						(collector  collect each.res_mix_IN_org),
-						(collector  collect each.res_pak_IN_org)],
+					[	(collector  collect each.res_waste_in_bin[0, 0]),
+						(collector  collect each.res_waste_in_bin[1, 0]),
+						(collector  collect each.res_waste_in_bin[2, 0])],
 						
-						[(collector  collect each.res_org_IN_mix),
-						(collector  collect each.res_mix_IN_mix),
-						(collector  collect each.res_pak_IN_mix)],
+						[(collector  collect each.res_waste_in_bin[0, 1]),
+						(collector  collect each.res_waste_in_bin[1, 1]),
+						(collector  collect each.res_waste_in_bin[2, 1])],
 						
-					[	(collector  collect each.res_org_IN_pak),
-						(collector  collect each.res_mix_IN_pak),
-						(collector  collect each.res_pak_IN_pak)]
+					[	(collector  collect each.res_waste_in_bin[0, 2]),
+						(collector  collect each.res_waste_in_bin[1, 2]),
+						(collector  collect each.res_waste_in_bin[2, 2])]
 
 						
 					]

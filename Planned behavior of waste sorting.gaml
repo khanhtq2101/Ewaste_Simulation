@@ -528,17 +528,22 @@ species prod_build schedules: []{
 	float org_cc;
 	float pak_cc;
 	
-	float org_in_mix;	
-	float mix_in_mix;	
-	float pak_in_mix;
+	//matrix to track waste, order: org, mix, pak
+	//row: waste type, column: bin
+	matrix waste_in_bin <- 0.0 as_matrix({3, 3});
 	
-	float org_in_org;	
-	float mix_in_org;	
-	float pak_in_org;
-	
-	float org_in_pak;	
-	float mix_in_pak;	
-	float pak_in_pak;
+	//float org_in_mix
+	//float waste_in_bin[0, 1];	
+//	float waste_in_bin[1, 1];	
+//	float waste_in_bin[2, 1];
+//	
+//	float waste_in_bin[0, 0];	
+//	float waste_in_bin[1, 0];	
+//	float waste_in_bin[2, 0];
+//	
+//	float waste_in_bin[0, 2];	
+//	float waste_in_bin[1, 2];	
+//	float waste_in_bin[2, 2];
 	
 	
 	// Variables needed to initialize simulation	
@@ -561,30 +566,36 @@ species house_hold schedules: []{ //
 	int filling_peep;
 	// End- initialization variables	
 	
+	//matrix to track waste, order: org, mix, pak
+	//row: waste type, column: bin
+	matrix waste_in_bin <- 0.0 as_matrix({3, 3}); 
+	
 	float mix_max <- rnd(1.0,1.5);// In Kg
 	float mix_cc;
 	int mix_tick <-0;
 	bool hh_mix_full <- mix_cc = 0 ? false : true;
-	float org_in_mix;	
-	float mix_in_mix;	
-	float pak_in_mix;
+	
+	//float org_in_mix;	waste_in_bin[0, 1]
+	//float org_in_mix;
+//	float mix_in_mix;	
+//	float pak_in_mix;
 	
 	float org_max <- rnd(1.0,1.5);// In Kg
 	float org_cc;
 	int org_tick <-0;
 	bool hh_org_full  <- org_cc = 0 ? false : true;
-	float org_in_org;	
-	float mix_in_org;	
-	float pak_in_org;
-	
+//	float org_in_org;	
+//	float mix_in_org;	
+//	float pak_in_org;
+
 
 	float pak_max <-rnd(1.0,2.0); // In Kg
 	float pak_cc;
 	int pak_tick <-0;
 	bool hh_pak_full  <- pak_cc = 0 ? false : true;
-	float org_in_pak;	
-	float mix_in_pak;	
-	float pak_in_pak;
+//	float org_in_pak;	
+//	float mix_in_pak;	
+//	float pak_in_pak;
 	
 	int space_bin min:0 max: 100;
 	
@@ -698,6 +709,10 @@ species collector  schedules: [] {  //
 	float from_res_org;
 	float from_res_mix;
 	float from_res_pak;
+	
+	//matrix to track the type of waste in bins
+	matrix res_waste_in_bin <- 0.0 as_matrix({3, 3});
+	
 	float res_org_IN_org;
 	float res_mix_IN_org;
 	float res_pak_IN_org;
@@ -1455,7 +1470,7 @@ species resident schedules: [] { //
 		//if(p_org_in_org >= rnd_num and not(org_dumped)) {
 
 			h_unit.org_cc 			<- h_unit.org_cc + current_org*0.001;
-			h_unit.org_in_org		<- h_unit.org_in_org + current_org*0.001;		
+			h_unit.waste_in_bin[0, 0]		<- h_unit.waste_in_bin[0, 0] + current_org*0.001;		
 			if (h_unit.org_tick = 0) {h_unit.org_tick <- 1;} 
 			org_dumped <- true;
 		}		
@@ -1464,7 +1479,7 @@ species resident schedules: [] { //
 		//if(p_org_in_mix >= rnd_num  and not(org_dumped)) {
 
 			h_unit.mix_cc 			<- h_unit.mix_cc + current_org*0.001;
-			h_unit.org_in_mix		<- h_unit.org_in_mix + current_org*0.001;
+			h_unit.waste_in_bin[0, 1]		<- h_unit.waste_in_bin[0, 1] + current_org*0.001;
 			if (h_unit.mix_tick = 0) {h_unit.mix_tick <- 1;} 	
 			org_dumped <- true;		
 		}
@@ -1473,7 +1488,7 @@ species resident schedules: [] { //
 		if(flip(p_mix_in_mix/100) and not(mix_dumped)) {			
 
 			h_unit.mix_cc 			<- h_unit.mix_cc + current_mix*0.001;
-			h_unit.mix_in_mix		<- h_unit.mix_in_mix + current_mix*0.001;	
+			h_unit.waste_in_bin[1, 1]		<- h_unit.waste_in_bin[1, 1] + current_mix*0.001;	
 			if (h_unit.mix_tick = 0) {h_unit.mix_tick <- 1;} 
 			mix_dumped <- true;	
 		}
@@ -1481,7 +1496,7 @@ species resident schedules: [] { //
 		if(flip(p_mix_in_org/100)  and not(mix_dumped)) {	
 				
 			h_unit.org_cc 			<- h_unit.org_cc + current_mix*0.001;
-			h_unit.mix_in_org		<- h_unit.mix_in_org + current_mix*0.001;
+			h_unit.waste_in_bin[1, 0]		<- h_unit.waste_in_bin[1, 0] + current_mix*0.001;
 			if (h_unit.org_tick = 0) {h_unit.org_tick <- 1;} 	
 			mix_dumped <- true;	
 		}		
@@ -1489,7 +1504,7 @@ species resident schedules: [] { //
 		if(flip(p_mix_in_pak/100) and not(mix_dumped)) {	
 
 			h_unit.pak_cc 			<- h_unit.pak_cc + current_mix*0.001;
-			h_unit.mix_in_pak		<- h_unit.mix_in_pak + current_mix*0.001;		
+			h_unit.waste_in_bin[1, 2]		<- h_unit.waste_in_bin[1, 2] + current_mix*0.001;		
 			if (h_unit.pak_tick = 0) {h_unit.pak_tick <- 1;} 	
 			mix_dumped <- true;	
 		}
@@ -1498,7 +1513,7 @@ species resident schedules: [] { //
 		if(flip(p_pak_in_pak/100) and not(pak_dumped)) {		
 
 			h_unit.pak_cc 			<- h_unit.pak_cc + current_pak*0.001;
-			h_unit.pak_in_pak		<- h_unit.pak_in_pak + current_pak*0.001;		
+			h_unit.waste_in_bin[2, 2]		<- h_unit.waste_in_bin[2, 2] + current_pak*0.001;		
 			if (h_unit.pak_tick = 0) {h_unit.pak_tick <- 1;} 	
 			pak_dumped <- true;
 		}		
@@ -1506,7 +1521,7 @@ species resident schedules: [] { //
 		if(flip(p_pak_in_mix/100) and not(pak_dumped)) {
 		
 			h_unit.mix_cc 			<- h_unit.mix_cc + current_pak*0.001;
-			h_unit.pak_in_mix		<- h_unit.pak_in_mix + current_pak*0.001;	
+			h_unit.waste_in_bin[2, 1]		<- h_unit.waste_in_bin[2, 1] + current_pak*0.001;	
 			if (h_unit.mix_tick = 0) {h_unit.mix_tick <- 1;} 	
 			pak_dumped <- true;	
 		}
@@ -1516,7 +1531,7 @@ species resident schedules: [] { //
 	if not(org_dumped) {
 		
 		h_unit.mix_cc 			<- h_unit.mix_cc + current_org*0.001;
-		h_unit.org_in_mix		<- h_unit.org_in_mix + current_org*0.001;
+		h_unit.waste_in_bin[0, 1]		<- h_unit.waste_in_bin[0, 1] + current_org*0.001;
 		if (h_unit.mix_tick = 0) {h_unit.mix_tick <- 1;} 	
 		org_dumped <- true;		
 		}
@@ -1525,14 +1540,14 @@ species resident schedules: [] { //
 		if flip(0.8) {
 		
 			h_unit.org_cc 			<- h_unit.org_cc + current_mix*0.001;
-			h_unit.mix_in_org		<- h_unit.mix_in_org + current_mix*0.001;
+			h_unit.waste_in_bin[1, 0]		<- h_unit.waste_in_bin[1, 0] + current_mix*0.001;
 			if (h_unit.org_tick = 0) {h_unit.org_tick <- 1;} 	
 			mix_dumped <- true;		
 			}
 		else {
 			
 			h_unit.pak_cc 			<- h_unit.pak_cc + current_mix*0.001;
-			h_unit.mix_in_pak		<- h_unit.mix_in_pak + current_mix*0.001;		
+			h_unit.waste_in_bin[1, 2]		<- h_unit.waste_in_bin[1, 2] + current_mix*0.001;		
 			if (h_unit.pak_tick = 0) {h_unit.pak_tick <- 1;} 	
 			mix_dumped <- true;				
 		}
@@ -1540,7 +1555,7 @@ species resident schedules: [] { //
 	
 	if not(pak_dumped) {
 		h_unit.mix_cc 			<- h_unit.mix_cc + current_pak*0.001;
-		h_unit.pak_in_mix		<- h_unit.pak_in_mix + current_pak*0.001;	
+		h_unit.waste_in_bin[2, 1]		<- h_unit.waste_in_bin[2, 1] + current_pak*0.001;	
 		if (h_unit.mix_tick = 0) {h_unit.mix_tick <- 1;} 	
 		pak_dumped <- true;
 	}
@@ -1581,16 +1596,16 @@ species resident schedules: [] { //
 		//		Penalty
 		
 		write "Transfer Org out";		
-		if (((h_unit.mix_in_org + h_unit.pak_in_org) / (h_unit.org_cc + 0.001)) >= thold_wrong_org) { /// 0.001 secures that the division is not 0
+		if (((h_unit.waste_in_bin[1, 0] + h_unit.waste_in_bin[2, 0]) / (h_unit.org_cc + 0.001)) >= thold_wrong_org) { /// 0.001 secures that the division is not 0
 	
 			
 			near_bin_mix.current_cap <- near_bin_mix.current_cap +  h_unit.org_cc;		
 			near_bin_mix.used <- near_bin_mix.used + 3;		
 			
 			//Continue tracking types
-			near_bin_mix.waste[0] <- near_bin_mix.waste[0] + h_unit.org_in_org;
-			near_bin_mix.waste[1] <- near_bin_mix.waste[1] + h_unit.mix_in_org;
-			near_bin_mix.waste[2] <- near_bin_mix.waste[2] + h_unit.pak_in_org;
+			near_bin_mix.waste[0] <- near_bin_mix.waste[0] + h_unit.waste_in_bin[0, 0]; //org in org
+			near_bin_mix.waste[1] <- near_bin_mix.waste[1] + h_unit.waste_in_bin[1, 0]; //mix in org
+			near_bin_mix.waste[2] <- near_bin_mix.waste[2] + h_unit.waste_in_bin[2, 0]; //pak in org
 			
 		}
 		
@@ -1599,11 +1614,11 @@ species resident schedules: [] { //
 			near_bin_org.used <- near_bin_org.used + 1;
 			
 			//Continue tracking types
-			near_bin_org.waste[0] <- near_bin_org.waste[0] + h_unit.org_in_org;
-			near_bin_org.waste[1] <- near_bin_org.waste[1] + h_unit.mix_in_org;
-			near_bin_org.waste[2] <- near_bin_org.waste[2] + h_unit.pak_in_org;
+			near_bin_org.waste[0] <- near_bin_org.waste[0] + h_unit.waste_in_bin[0, 0];
+			near_bin_org.waste[1] <- near_bin_org.waste[1] + h_unit.waste_in_bin[1, 0];
+			near_bin_org.waste[2] <- near_bin_org.waste[2] + h_unit.waste_in_bin[2, 0];
 			
-			write "Transfer org out correct, amount s" + h_unit.org_in_org + near_bin_org.waste[0] + near_bin_org.waste[1] + near_bin_org.waste[2];
+			write "Transfer org out correct, amount s" + h_unit.waste_in_bin[0, 0] + near_bin_org.waste[0] + near_bin_org.waste[1] + near_bin_org.waste[2];
 		
 		}
 	
@@ -1612,9 +1627,9 @@ species resident schedules: [] { //
 		h_unit.org_tick 		<- 0;	
 		
 		// reseting after dump
-	 	h_unit.org_in_org <-0.0;	
-	 	h_unit.mix_in_org <-0.0;	
-	 	h_unit.pak_in_org <-0.0;
+	 	h_unit.waste_in_bin[0, 0] <-0.0;	
+	 	h_unit.waste_in_bin[1, 0] <-0.0;	
+	 	h_unit.waste_in_bin[2, 0] <-0.0;
 		
 		q_empty_org <- q_empty_org + 1;
 		h_unit.org_max <- rnd(1.0,1.5);
@@ -1626,9 +1641,9 @@ species resident schedules: [] { //
 		near_bin_mix.used <- near_bin_mix.used + 1;
 		
 		//Continue tracking types
-		near_bin_mix.waste[0] <- near_bin_mix.waste[0] + h_unit.org_in_mix;
-		near_bin_mix.waste[1] <- near_bin_mix.waste[1] + h_unit.mix_in_mix;
-		near_bin_mix.waste[2] <- near_bin_mix.waste[2] + h_unit.pak_in_mix;
+		near_bin_mix.waste[0] <- near_bin_mix.waste[0] + h_unit.waste_in_bin[0, 1];
+		near_bin_mix.waste[1] <- near_bin_mix.waste[1] + h_unit.waste_in_bin[1, 1]; //mix in mix
+		near_bin_mix.waste[2] <- near_bin_mix.waste[2] + h_unit.waste_in_bin[2, 1]; //pak in mix
 		
 				
 		h_unit.mix_cc 			<- 0.0;
@@ -1636,24 +1651,24 @@ species resident schedules: [] { //
 		h_unit.mix_tick 		<- 0;	
 		
 		// reseting after dump
-	 	h_unit.org_in_mix <-0.0;	
-	 	h_unit.mix_in_mix <-0.0;	
-	 	h_unit.pak_in_mix <-0.0;
+	 	h_unit.waste_in_bin[0, 1] <-0.0;	
+	 	h_unit.waste_in_bin[1, 1] <-0.0;	
+	 	h_unit.waste_in_bin[2, 1] <-0.0;
 		
 		q_empty_mix <- q_empty_mix + 1;	
 		h_unit.mix_max <- rnd(1.0,1.5);		
 	}
 		
 	action transfer_pak_out {				
-		if (((h_unit.mix_in_pak + h_unit.org_in_pak) / h_unit.pak_cc+0.001) >= thold_wrong_pak) {		/// 0.001 secures that the division is not 0	
+		if (((h_unit.waste_in_bin[1, 2] + h_unit.waste_in_bin[0, 2]) / h_unit.pak_cc+0.001) >= thold_wrong_pak) {		/// 0.001 secures that the division is not 0	
 			
 			near_bin_mix.current_cap <- near_bin_mix.current_cap +  h_unit.pak_cc;		
 			near_bin_mix.used <- near_bin_mix.used + 3;		
 			
 			//Continue tracking types
-			near_bin_mix.waste[0] <- near_bin_mix.waste[0] + h_unit.org_in_pak;
-			near_bin_mix.waste[1] <- near_bin_mix.waste[1] + h_unit.mix_in_pak;
-			near_bin_mix.waste[2] <- near_bin_mix.waste[2] + h_unit.pak_in_pak;
+			near_bin_mix.waste[0] <- near_bin_mix.waste[0] + h_unit.waste_in_bin[0, 2]; //org in pak
+			near_bin_mix.waste[1] <- near_bin_mix.waste[1] + h_unit.waste_in_bin[1, 2]; //mix in pak
+			near_bin_mix.waste[2] <- near_bin_mix.waste[2] + h_unit.waste_in_bin[2, 2]; //pak in pak
 			
 		}
 		
@@ -1662,9 +1677,9 @@ species resident schedules: [] { //
 			near_bin_pak.used <- near_bin_pak.used + 1;
 		
 			//Continue tracking types
-			near_bin_pak.waste[0] <- near_bin_pak.waste[0] + h_unit.org_in_pak;
-			near_bin_pak.waste[1] <- near_bin_pak.waste[1] + h_unit.mix_in_pak;
-			near_bin_pak.waste[2] <- near_bin_pak.waste[2] + h_unit.pak_in_pak;
+			near_bin_pak.waste[0] <- near_bin_pak.waste[0] + h_unit.waste_in_bin[0, 2];
+			near_bin_pak.waste[1] <- near_bin_pak.waste[1] + h_unit.waste_in_bin[1, 2];
+			near_bin_pak.waste[2] <- near_bin_pak.waste[2] + h_unit.waste_in_bin[2, 2];
 		
 		}
 		
@@ -1674,9 +1689,9 @@ species resident schedules: [] { //
 		h_unit.pak_tick 		<-	0;	
 			
 		// reseting after dump
-	 	h_unit.org_in_pak 		<-	0.0;	
-	 	h_unit.mix_in_pak 		<-	0.0;	
-	 	h_unit.pak_in_pak 		<-	0.0;
+	 	h_unit.waste_in_bin[0, 2] 		<-	0.0;	
+	 	h_unit.waste_in_bin[1, 2] 		<-	0.0;	
+	 	h_unit.waste_in_bin[2, 2] 		<-	0.0;
 	 	
 	 	q_empty_pak 			<- 	q_empty_pak + 1;
 	 	h_unit.pak_max 			<-	rnd(1.0,2.0);
@@ -2009,17 +2024,17 @@ experiment waste_sort type: gui {
 			series_label_position: legend
 			 {
 				datalist value:[
-					[	(sum(house_hold collect each.org_in_org)),
-						(sum(house_hold collect each.mix_in_org)),
-						(sum(house_hold collect each.pak_in_org))],
+					[	(sum(house_hold collect each.waste_in_bin[0, 0])),
+						(sum(house_hold collect each.waste_in_bin[1, 0])),
+						(sum(house_hold collect each.waste_in_bin[2, 0]))],
 						
-					[	(sum(house_hold collect each.mix_in_org)),
-						(sum(house_hold collect each.mix_in_mix)),
-						(sum(house_hold collect each.mix_in_pak))],
+					[	(sum(house_hold collect each.waste_in_bin[1, 0])),
+						(sum(house_hold collect each.waste_in_bin[1, 1])),
+						(sum(house_hold collect each.waste_in_bin[1, 2]))],
 						
-					[	(sum(house_hold collect each.pak_in_org)),
-						(sum(house_hold collect each.pak_in_mix)),
-						(sum(house_hold collect each.pak_in_pak))]
+					[	(sum(house_hold collect each.waste_in_bin[2, 0])),
+						(sum(house_hold collect each.waste_in_bin[2, 1])),
+						(sum(house_hold collect each.waste_in_bin[2, 2]))]
 						
 					]
 					   style:stack 

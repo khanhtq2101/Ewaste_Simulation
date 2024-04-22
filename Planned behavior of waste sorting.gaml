@@ -16,10 +16,10 @@ global {
 	//    URBAN SITUATIONS: PLACE HOLD FOR SHAPEFILES
 	////////////////////////////////////////7
 	//file shape_file_residential 	<- file("E:/Social-Industrial Symbiosis - SIMTech/progress/week 9/getting data/HDBExistingBuilding_demo/HDBExistingBuilding_demo.shp");	
-	file shape_file_residential 	<- file("../includes/HDBExistingBuilding_demo_100unit_2res/HDBExistingBuilding_demo.shp");
-	file shape_file_productive 		<- file("../includes/Low_Dens/office_demo.shp");	
+	file shape_file_residential 	<- file("../../includes/HDBExistingBuilding_demo_100unit_2res/HDBExistingBuilding_demo.shp");
+	file shape_file_productive 		<- file("../../includes/Low_Dens/office_demo.shp");	
 	//file shape_file_bin 			<- file("E:/Social-Industrial Symbiosis - SIMTech/progress/week 9/getting data/E-wasteCollectionPoints_demo/E-wasteCollectionPoints_demo.shp");	
-	file shape_file_bin				<- file("../includes/Low_Dens/E-wasteCollectionPoints_demo.shp");
+	file shape_file_bin				<- file("../../includes/Low_Dens/E-wasteCollectionPoints_demo.shp");
 	geometry shape 					<- envelope(shape_file_bin) + 100;	
 	
 	
@@ -496,13 +496,13 @@ global {
 	float KPI_avg_t;
 	
 	reflex instant_kpis when: every(3 #cycle) and cycle>=3 {
-		try{KPI_org_t <-(((bin where (each.type='ORG') sum_of(each.org))
+		try{KPI_org_t <-(((bin where (each.type='ORG') sum_of(each.waste[0]))
 								/(bin where (each.type='ORG') sum_of(each.current_cap)))*100) with_precision(2);}
 								
-		try{KPI_mix_t <-(((bin where (each.type='MIX') sum_of(each.mix))
+		try{KPI_mix_t <-(((bin where (each.type='MIX') sum_of(each.waste[1]))
 								/(bin where (each.type='MIX') sum_of(each.current_cap)))*100) with_precision(2);}
 								
-		try{KPI_pak_t <-(((bin where (each.type='PAK') sum_of(each.pak))
+		try{KPI_pak_t <-(((bin where (each.type='PAK') sum_of(each.waste[2]))
 								/(bin where (each.type='PAK') sum_of(each.current_cap)))*100) with_precision(2);}
 																
 								
@@ -633,10 +633,15 @@ species bin  schedules: [] {//
 	string type;
 	float current_cap;
 	int used;
+	
+	matrix waste <- matrix ([0, 0, 0]);
 
-	float org;
-	float mix;
-	float pak;
+	//float org;
+	//float waste[0];
+	//float mix;
+	//float waste[1];
+	//float pak;
+	//float waste[2];
 
 	int info_org <- global_org_info min:0 max:100;
 	int info_mix <- global_mix_info min:0 max:100;
@@ -725,21 +730,21 @@ species collector  schedules: [] {  //
 		from_res_total <- from_res_org + from_res_mix + from_res_pak;
 		
 		// org
-		res_org_IN_org <- res_org_IN_org + (bin where (each.type='ORG') sum_of(each.org)) with_precision(2);
-		res_mix_IN_org <- res_mix_IN_org + (bin where (each.type='ORG') sum_of(each.mix)) with_precision(2);
-		res_pak_IN_org <- res_pak_IN_org + (bin where (each.type='ORG') sum_of(each.pak)) with_precision(2);
+		res_org_IN_org <- res_org_IN_org + (bin where (each.type='ORG') sum_of(each.waste[0])) with_precision(2);
+		res_mix_IN_org <- res_mix_IN_org + (bin where (each.type='ORG') sum_of(each.waste[1])) with_precision(2);
+		res_pak_IN_org <- res_pak_IN_org + (bin where (each.type='ORG') sum_of(each.waste[2])) with_precision(2);
 				
 			
 		// mix
-		res_org_IN_mix <- res_org_IN_mix + (bin where (each.type='MIX') sum_of(each.org)) with_precision(2);
-		res_mix_IN_mix <- res_mix_IN_mix + (bin where (each.type='MIX') sum_of(each.mix)) with_precision(2);
-		res_pak_IN_mix <- res_pak_IN_mix + (bin where (each.type='MIX') sum_of(each.pak)) with_precision(2);
+		res_org_IN_mix <- res_org_IN_mix + (bin where (each.type='MIX') sum_of(each.waste[0])) with_precision(2);
+		res_mix_IN_mix <- res_mix_IN_mix + (bin where (each.type='MIX') sum_of(each.waste[1])) with_precision(2);
+		res_pak_IN_mix <- res_pak_IN_mix + (bin where (each.type='MIX') sum_of(each.waste[2])) with_precision(2);
 
 			
 		// pak
-		res_org_IN_pak <- res_org_IN_pak + (bin where (each.type='PAK') sum_of(each.org)) with_precision(2);
-		res_mix_IN_pak <- res_mix_IN_pak + (bin where (each.type='PAK') sum_of(each.mix)) with_precision(2);
-		res_pak_IN_pak <- res_pak_IN_pak + (bin where (each.type='PAK') sum_of(each.pak)) with_precision(2);
+		res_org_IN_pak <- res_org_IN_pak + (bin where (each.type='PAK') sum_of(each.waste[0])) with_precision(2);
+		res_mix_IN_pak <- res_mix_IN_pak + (bin where (each.type='PAK') sum_of(each.waste[1])) with_precision(2);
+		res_pak_IN_pak <- res_pak_IN_pak + (bin where (each.type='PAK') sum_of(each.waste[2])) with_precision(2);
 			
 		try{KPI_org <- ((res_org_IN_org/from_res_org)*100) with_precision(2);}
 		try{KPI_mix <- ((res_mix_IN_mix/from_res_mix)*100) with_precision(2);}	
@@ -751,9 +756,9 @@ species collector  schedules: [] {  //
 			
 		ask bin {
 			used 		<- 	0;
-			org 		<- 	0.0;
-			mix 		<- 	0.0;
-			pak 		<- 	0.0;
+			waste[0] 		<- 	0.0;
+			waste[1] 		<- 	0.0;
+			waste[2] 		<- 	0.0;
 			current_cap <-	0.0;				
 		}
 		
@@ -772,25 +777,25 @@ species collector  schedules: [] {  //
 		from_res_total <- (from_res_org + from_res_mix + from_res_pak); //*0.001
 			
 		// org
-		res_org_IN_org <- from_res_org + bin where (each.type='ORG') sum_of(each.org)  with_precision(2);
-		res_mix_IN_org <- from_res_mix + bin where (each.type='ORG') sum_of(each.mix)  with_precision(2);
-		res_pak_IN_org <- from_res_pak + bin where (each.type='ORG') sum_of(each.pak)  with_precision(2);
+		res_org_IN_org <- from_res_org + bin where (each.type='ORG') sum_of(each.waste[0])  with_precision(2);
+		res_mix_IN_org <- from_res_mix + bin where (each.type='ORG') sum_of(each.waste[1])  with_precision(2);
+		res_pak_IN_org <- from_res_pak + bin where (each.type='ORG') sum_of(each.waste[2])  with_precision(2);
 			
 		// org
-		res_org_IN_mix <- from_res_org + bin where (each.type='MIX') sum_of(each.org)  with_precision(2);
-		res_mix_IN_mix <- from_res_mix + bin where (each.type='MIX') sum_of(each.mix)  with_precision(2);
-		res_pak_IN_mix <- from_res_pak + bin where (each.type='MIX') sum_of(each.pak)  with_precision(2);
+		res_org_IN_mix <- from_res_org + bin where (each.type='MIX') sum_of(each.waste[0])  with_precision(2);
+		res_mix_IN_mix <- from_res_mix + bin where (each.type='MIX') sum_of(each.waste[1])  with_precision(2);
+		res_pak_IN_mix <- from_res_pak + bin where (each.type='MIX') sum_of(each.waste[2])  with_precision(2);
 			
 		// org
-		res_org_IN_pak <- from_res_org + bin where (each.type='PAK') sum_of(each.org)  with_precision(2);
-		res_mix_IN_pak <- from_res_mix + bin where (each.type='PAK') sum_of(each.mix)  with_precision(2);
-		res_pak_IN_pak <- from_res_pak + bin where (each.type='PAK') sum_of(each.pak)  with_precision(2);
+		res_org_IN_pak <- from_res_org + bin where (each.type='PAK') sum_of(each.waste[0])  with_precision(2);
+		res_mix_IN_pak <- from_res_mix + bin where (each.type='PAK') sum_of(each.waste[1])  with_precision(2);
+		res_pak_IN_pak <- from_res_pak + bin where (each.type='PAK') sum_of(each.waste[2])  with_precision(2);
 			
 		ask bin {
 			used 		<- 	0;
-			org 		<- 	0.0;
-			mix 		<- 	0.0;
-			pak 		<- 	0.0;
+			waste[0] 		<- 	0.0;
+			waste[1] 		<- 	0.0;
+			waste[2] 		<- 	0.0;
 			current_cap <-	0.0;				
 		}
 			
@@ -1581,9 +1586,9 @@ species resident schedules: [] { //
 			near_bin_mix.used <- near_bin_mix.used + 3;		
 			
 			//Continue tracking types
-			near_bin_mix.org <- near_bin_mix.org + h_unit.org_in_org;
-			near_bin_mix.mix <- near_bin_mix.mix + h_unit.mix_in_org;
-			near_bin_mix.pak <- near_bin_mix.pak + h_unit.pak_in_org;
+			near_bin_mix.waste[0] <- near_bin_mix.waste[0] + h_unit.org_in_org;
+			near_bin_mix.waste[1] <- near_bin_mix.waste[1] + h_unit.mix_in_org;
+			near_bin_mix.waste[2] <- near_bin_mix.waste[2] + h_unit.pak_in_org;
 			
 		}
 		
@@ -1593,9 +1598,9 @@ species resident schedules: [] { //
 			near_bin_org.used <- near_bin_org.used + 1;
 			
 			//Continue tracking types
-			near_bin_org.org <- near_bin_org.org + h_unit.org_in_org;
-			near_bin_org.mix <- near_bin_org.mix + h_unit.mix_in_org;
-			near_bin_org.pak <- near_bin_org.pak + h_unit.pak_in_org;
+			near_bin_org.waste[0] <- near_bin_org.waste[0] + h_unit.org_in_org;
+			near_bin_org.waste[1] <- near_bin_org.waste[1] + h_unit.mix_in_org;
+			near_bin_org.waste[2] <- near_bin_org.waste[2] + h_unit.pak_in_org;
 		
 		}
 	
@@ -1618,9 +1623,9 @@ species resident schedules: [] { //
 		near_bin_mix.used <- near_bin_mix.used + 1;
 		
 		//Continue tracking types
-		near_bin_mix.org <- near_bin_mix.org + h_unit.org_in_mix;
-		near_bin_mix.mix <- near_bin_mix.mix + h_unit.mix_in_mix;
-		near_bin_mix.pak <- near_bin_mix.pak + h_unit.pak_in_mix;
+		near_bin_mix.waste[0] <- near_bin_mix.waste[0] + h_unit.org_in_mix;
+		near_bin_mix.waste[1] <- near_bin_mix.waste[1] + h_unit.mix_in_mix;
+		near_bin_mix.waste[2] <- near_bin_mix.waste[2] + h_unit.pak_in_mix;
 		
 				
 		h_unit.mix_cc 			<- 0.0;
@@ -1643,9 +1648,9 @@ species resident schedules: [] { //
 			near_bin_mix.used <- near_bin_mix.used + 3;		
 			
 			//Continue tracking types
-			near_bin_mix.org <- near_bin_mix.org + h_unit.org_in_pak;
-			near_bin_mix.mix <- near_bin_mix.mix + h_unit.mix_in_pak;
-			near_bin_mix.pak <- near_bin_mix.pak + h_unit.pak_in_pak;
+			near_bin_mix.waste[0] <- near_bin_mix.waste[0] + h_unit.org_in_pak;
+			near_bin_mix.waste[1] <- near_bin_mix.waste[1] + h_unit.mix_in_pak;
+			near_bin_mix.waste[2] <- near_bin_mix.waste[2] + h_unit.pak_in_pak;
 			
 		}
 		
@@ -1654,9 +1659,9 @@ species resident schedules: [] { //
 			near_bin_pak.used <- near_bin_pak.used + 1;
 		
 			//Continue tracking types
-			near_bin_pak.org <- near_bin_pak.org + h_unit.org_in_pak;
-			near_bin_pak.mix <- near_bin_pak.mix + h_unit.mix_in_pak;
-			near_bin_pak.pak <- near_bin_pak.pak + h_unit.pak_in_pak;
+			near_bin_pak.waste[0] <- near_bin_pak.waste[0] + h_unit.org_in_pak;
+			near_bin_pak.waste[1] <- near_bin_pak.waste[1] + h_unit.mix_in_pak;
+			near_bin_pak.waste[2] <- near_bin_pak.waste[2] + h_unit.pak_in_pak;
 		
 		}
 		
@@ -1940,17 +1945,17 @@ experiment waste_sort type: gui {
 			 {
 				datalist value:[
 					
-					[	(sum(bin where (each.type = "ORG") collect each.org)),
-						(sum(bin where (each.type = "MIX") collect each.org)),
-						(sum(bin where (each.type = "PAK") collect each.org))],
+					[	(sum(bin where (each.type = "ORG") collect each.waste[0])),
+						(sum(bin where (each.type = "MIX") collect each.waste[0])),
+						(sum(bin where (each.type = "PAK") collect each.waste[0]))],
 						
-					[	(sum(bin where (each.type = "ORG") collect each.mix)),
-						(sum(bin where (each.type = "MIX") collect each.mix)),
-						(sum(bin where (each.type = "PAK") collect each.mix))],
+					[	(sum(bin where (each.type = "ORG") collect each.waste[1])),
+						(sum(bin where (each.type = "MIX") collect each.waste[1])),
+						(sum(bin where (each.type = "PAK") collect each.waste[1]))],
 						
-					[	(sum(bin where (each.type = "ORG") collect each.pak)),
-						(sum(bin where (each.type = "MIX") collect each.pak)),
-						(sum(bin where (each.type = "PAK") collect each.pak))]
+					[	(sum(bin where (each.type = "ORG") collect each.waste[2])),
+						(sum(bin where (each.type = "MIX") collect each.waste[2])),
+						(sum(bin where (each.type = "PAK") collect each.waste[2]))]
 
 						
 					]

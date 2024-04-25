@@ -9,6 +9,10 @@
 model waste_sorting
 
 global {
+	
+	int n_waste_type <- 4;
+	int n_bin_type <- 3;
+	
 	// SET A STARTING SEED, in case of getting the same simulation
 	//float seed <- rnd(0.0,1000.0);				
 	
@@ -60,9 +64,11 @@ global {
     float home_office_proba 	<- 0.05; 		// State the prob of staying at home
     float work_normal_proba   	<- 0.95;  		// State the prob of working normal hours 
     
-    int start_info_org 	<- 50;					// Define how much information is in the org bin
-	int start_info_mix	<- 50;					// Define how much information is in the residual bin
-	int start_info_pak	<- 50;					// Define how much information is in the residual bin
+    matrix<int> start_info_bin <- 50 as_matrix({n_waste_type, 1});
+    
+//  int start_info_bin[0] 	<- 50;					// Define how much information is in the org bin
+//	int start_info_bin[1]	<- 50;					// Define how much information is in the residual bin
+//	int start_info_bin[2]	<- 50;					// Define how much information is in the residual bin
 	
 	
 		
@@ -154,16 +160,27 @@ global {
 	///////////////////////////////////////////////////////
 	//////      Waste amounts per capita
 	////////////////////////////////////////////////
-	int org_day		<- 115;		// 115 grms per day
-	int mix_day 	<- 430;		// 430 grms per day
-	int pak_day 	<- 178;		// 178 grms per day		
-	int org_day_sd	<- 20; 		// 115 grms per day
-	int mix_day_sd 	<- 70; 		// 430 grms per day
-	int pak_day_sd 	<- 30; 		// 178 grms per day		
 	
-	int global_org_info <-start_info_org min:0 max:100;
-	int global_mix_info <-start_info_mix min:0 max:100;
-	int global_pak_info <-start_info_pak min:0 max:100;
+	// mean and standard deviation of the waste
+	matrix<int> mean_waste_day <- 0 as_matrix({n_waste_type, 1});
+	//Initialization in init{}
+		
+//	int org_day		<- 115;		// 115 grms per day
+//	int mix_day 	<- 430;		// 430 grms per day
+//	int pak_day 	<- 178;		// 178 grms per day	
+	
+	matrix<int> waste_day_std <- 0 as_matrix({n_waste_type, 1});
+	//Initialization in init{}	
+	
+//	int org_day_sd	<- 20; 		// 115 grms per day
+//	int mix_day_sd 	<- 70; 		// 430 grms per day
+//	int pak_day_sd 	<- 30; 		// 178 grms per day		
+
+	matrix<int> global_bin_info <- 0 as_matrix({n_waste_type, 1});
+	
+//	int global_bin_info[0] <-start_info_bin[0] min:0 max:100;
+//	int global_bin_info[1] <-start_info_bin[1] min:0 max:100;
+//	int global_bin_info[2] <-start_info_bin[2] min:0 max:100;
 	
 	////// Miss sorting waste
 	////////////////////////////////////
@@ -176,7 +193,23 @@ global {
 	////// Process of creating agents
 	///////////////////////////////////
 	init {
-
+		
+		//Waste generation mean and std initialization
+		//Waste type: org, mix, pak
+		mean_waste_day[0]	<- 115;		// 115 grms per day
+		mean_waste_day[1] 	<- 430;		// 430 grms per day
+		mean_waste_day[2] 	<- 178;		// 178 grms per day
+		mean_waste_day[3] 	<- 3780;		// 178 grms per day
+		
+		waste_day_std[0]	<- 20; 		// 115 grms per day
+		waste_day_std[1] 	<- 70; 		// 430 grms per day
+		waste_day_std[2] 	<- 30; 		// 178 grms per day
+		waste_day_std[3] 	<- 30; 		// 178 grms per day
+		
+		loop i from: 0 to: n_waste_type - 1{
+			global_bin_info[i] <- start_info_bin[i];
+		}
+		
 		create scheduler;		
 		create collector;		
 		create prod_build 	from: shape_file_productive returns:  productive_list {}
@@ -190,7 +223,17 @@ global {
 				else if (type="ORG"){ color<- #green; }
 				else {color <-#violet;}
 				
+				//assign boolean type of bin, order: [org, mix, pak]
+				if (type = "ORG") {type_bool[0] <- true;}
+				else if (type = "MIX") {type_bool[1] <- true;}
+				else {type_bool[2] <- true;}
 				
+				write type_bool;
+				write type;
+				
+				info_bin <- global_bin_info[0]; // min:0 max:100;
+//				info_bin[1] <- global_bin_info[1]; // min:0 max:100;
+//				info_bin[2] <- global_bin_info[2]; // min:0 max:100;
 			}
 			
 			
@@ -216,15 +259,31 @@ global {
 					my_place <- location;
 					
 					
+					//Note: Idea to do here!!!
+					//Might use loop to assign nearest bin!!!
+					
+					matrix<float> dist_bin <- 0.0 as_matrix({n_bin_type, 1});
+					near_bin <- nil as_matrix({n_bin_type, 1});
+					
+					loop i from: 0 to: n_bin_type - 1 {
+						near_bin[i] <- bin where (each.type_bool[i] = true)		closest_to(self);
+						dist_bin[i] <- self distance_to near_bin[i]		with_precision(1);
+					}
+					
 					// Set the distance to different bins
-					near_bin_org <- bin where (each.type = "ORG")		closest_to(self);			
-					float dist_bin_org <- self distance_to near_bin_org		with_precision(1);
-					
-					near_bin_mix <- bin where (each.type = "MIX")		closest_to(self);			
-					float dist_bin_mix <- self distance_to near_bin_mix		with_precision(1);
-					
-					near_bin_pak <- bin where (each.type = "PAK")		closest_to(self);			
-					float dist_bin_pak <- self distance_to near_bin_pak		with_precision(1);
+					//Encoded type to assign bin
+					//near_bin_org <- bin where (each.type = "ORG")		closest_to(self);
+														
+//					near_bin[0] <- bin where (each.type_bool[0] = true)		closest_to(self);
+//					dist_bin[0] <- self distance_to near_bin[0]		with_precision(1);
+//					
+//					//near_bin_mix <- bin where (each.type = "MIX")		closest_to(self);	
+//					near_bin[1] <- bin where (each.type_bool[1] = true)		closest_to(self);		
+//					dist_bin[1] <- self distance_to near_bin[1]		with_precision(1);
+//					
+//					//near_bin_pak <- bin where (each.type = "PAK")		closest_to(self);
+//					near_bin[2] <- bin where (each.type_bool[2] = true)		closest_to(self);				
+//					dist_bin[2] <- self distance_to near_bin[2]		with_precision(1);
 									
 					
 					
@@ -237,21 +296,36 @@ global {
 					
 										
 					// Load initial values of waste
-					budget_waste[0] <- int(gauss(org_day, org_day_sd));
-					budget_waste[1] <- int(gauss(mix_day, mix_day_sd));
-					budget_waste[2] <- int(gauss(pak_day, pak_day_sd));
+					loop i from: 0 to: n_waste_type - 1{
+						budget_waste[i] <- int(gauss(mean_waste_day[i], waste_day_std[i]));
+						write "Buget type " + i + ":" + budget_waste[i];
+					}
+//					budget_waste[0] <- int(gauss(mean_waste_day[0], waste_day_std[0]));
+//					budget_waste[1] <- int(gauss(mean_waste_day[1], waste_day_std[1]));
+//					budget_waste[2] <- int(gauss(mean_waste_day[2], waste_day_std[2]));
 					
 					//behaviour <- gauss(80,10);					
-					mean_dist <- (0.5*dist_bin_org +0.1*dist_bin_mix  + 0.3* dist_bin_pak) with_precision(2);	
-					mean_dist <- scale_dist*mean_dist;
+					//Original: mean_dist <- (0.5*dist_bin_org +0.1*dist_bin_mix  + 0.3* dist_bin_pak) with_precision(2);	
 					
+					mean_dist <- (0.5*dist_bin[0] +0.1*dist_bin[1]  + 0.3* dist_bin[2]) with_precision(2);
+					mean_dist <- scale_dist*mean_dist;
+									
 					}
 					
 					
 			
 				// The agent building create households based on the varible hholds in the shapefile
 				create house_hold number: self.hholds returns: hhold_list {
+					
+					//Initialization of max waste
+					bin_max[1] <- rnd(1.0,1.5);// In Kg
+					bin_max[0] <- rnd(1.0,1.5);// In Kg
+					bin_max[2] <-rnd(1.0,2.0); // In Kg
 				
+					hh_bin_full[1] <- bin_cc[1] = 0 ? false : true;
+					hh_bin_full[0] <- bin_cc[1] = 0 ? false : true;
+					hh_bin_full[2] <- bin_cc[1] = 0 ? false : true;
+					
 					int tot_hholds <- myself.hholds;					
 					// I need to find a better solution for this last line
 					max_people <- int((myself.tot_pop /myself.hholds)) + rnd(0,1); // + rnd(0,1);	
@@ -301,10 +375,10 @@ global {
 				
 			friend_list <- remove_duplicates (friend_list);
 			
-			// Define a list of residents shring bins
-			my_org_comm <- (resident - self)  where (each.near_bin_org = self.near_bin_org);
-			my_mix_comm <- (resident - self)  where (each.near_bin_mix = self.near_bin_mix);
-			my_pak_comm <- (resident - self)  where (each.near_bin_pak = self.near_bin_pak);			
+			// Define a list of residents sharing bins
+			my_org_comm <- (resident - self)  where (each.near_bin[0] = self.near_bin[0]);
+			my_mix_comm <- (resident - self)  where (each.near_bin[1] = self.near_bin[1]);
+			my_pak_comm <- (resident - self)  where (each.near_bin[2] = self.near_bin[2]);			
 			
 			roomies_list 	<- (resident - self)  where (each.h_unit = self.h_unit);		
 			colleg_list 	<- (resident - self)  where (each.work_place = self.work_place);	
@@ -313,15 +387,15 @@ global {
 		// Define waste types and create them
 		ask bin {
 			if (type = 'ORG') {				
-				pop <- length(resident  where (each.near_bin_org = self));			
+				pop <- length(resident  where (each.near_bin[0] = self));			
 			}
 			
 			else if (type = 'MIX') {				
-				pop <- length(resident  where (each.near_bin_mix = self));
+				pop <- length(resident  where (each.near_bin[1] = self));
 			}
 						
 			else {					
-				pop <- length(resident  where (each.near_bin_pak = self));				
+				pop <- length(resident  where (each.near_bin[2] = self));				
 			}
 			
 			
@@ -335,42 +409,65 @@ global {
 	
 	// This following set of variables are inteded to be used during the simulation
 	// These variables change the amont information in the bins
-	action increase_org_info {
+	
+	action increase_info {
 		ask bin {
-			info_org <- info_org + 5;
+			info_bin <- info_bin + 5;
+		}
+	}
+	action decrease_info {
+		ask bin {
+			info_bin <- info_bin - 5;
 		}
 	}
 	
-	action decrease_org_info {
-		ask bin {
-			info_org <- info_org - 5;
-		}
-	}
-	
-	action increase_mix_info {
-		ask bin {
-			info_mix <- info_mix + 5;
-		}
-	}
-	
-	action decrease_mix_info {
-		ask bin {
-			info_mix <- info_mix - 5;
-		}
-	}
-	
-	action increase_pak_info {
-		ask bin {
-			info_pak <- info_pak + 5;
-		}
-	}
-	
-	action decrease_pak_info {
-		ask bin {
-			info_pak <- info_pak - 5;
-		}
-	}
-	
+//	action increase_org_info {
+//		ask bin {
+//			if (info_bin[0] + 5 > 100){
+//				write "Value is greater than 100: " + info_bin[0];
+//			} else {
+//				write "Value is smaller than 100";
+//			}
+//			info_bin[0] <- info_bin[0] + 5;
+//			write "Value " + info_bin[0];
+//		}
+//	}
+//	
+//	action decrease_org_info {
+//		ask bin {
+//			info_bin[0] <- info_bin[0] - 5;
+//		}
+//	}
+//	
+//	action increase_mix_info {
+//		ask bin {
+//			if (info_bin[0] + 5 > 100){
+//				write "Value is greater than 100: " + info_bin[0];
+//			} else {
+//				write "Value is smaller than 100";
+//			}
+//			info_bin[1] <- info_bin[1] + 5;
+//		}
+//	}
+//	
+//	action decrease_mix_info {
+//		ask bin {
+//			info_bin[1] <- info_bin[1] - 5;
+//		}
+//	}
+//	
+//	action increase_pak_info {
+//		ask bin {
+//			info_bin[2] <- info_bin[2] + 5;
+//		}
+//	}
+//	
+//	action decrease_pak_info {
+//		ask bin {
+//			info_bin[2] <- info_bin[2] - 5;
+//		}
+//	}
+//	
 	action increase_hhold_bin_space {
 		ask house_hold {
 			space_bin <- space_bin + 2;
@@ -409,15 +506,15 @@ global {
         	write "Prod-pak (Kg): " 		+ from_prod_pak 	with_precision(2);
         	write "Prod-total (Kg): " 		+ from_prod_total 	with_precision(2);      
 	        
-	       	write "Res-org (Kg): " 		+ (from_res_org) 	with_precision(2);
-	        write "Res-mix (Kg): " 		+ (from_res_mix) 	with_precision(2);        
-	        write "Res-pak (Kg): " 		+ (from_res_pak) 	with_precision(2);	           
+	       	write "Res-org (Kg): " 		+ (from_res_waste[0]) 	with_precision(2);
+	        write "Res-mix (Kg): " 		+ (from_res_waste[1]) 	with_precision(2);        
+	        write "Res-pak (Kg): " 		+ (from_res_waste[2]) 	with_precision(2);	           
 	        write "Res-total (Kg): " 	+ (from_res_total) 	with_precision(2);
 	        
 	        
-	        write "Total organic (Kg): " 	+ (from_res_org + from_prod_org) with_precision(2);
-	        write "Total residual (Kg): " 	+ (from_prod_mix + from_res_mix) with_precision(2);        
-	        write "Total recyclable (Kg): " 	+ (from_prod_pak+ from_res_pak)  with_precision(2);
+	        write "Total organic (Kg): " 	+ (from_res_waste[0] + from_prod_org) with_precision(2);
+	        write "Total residual (Kg): " 	+ (from_prod_mix + from_res_waste[1]) with_precision(2);        
+	        write "Total recyclable (Kg): " 	+ (from_prod_pak+ from_res_waste[2])  with_precision(2);
 	        
 	        
 	       	write "Total waste (Ton): " 	+ ((from_prod_total + from_res_total)/1000) 					with_precision(2);
@@ -425,9 +522,9 @@ global {
 	        
 
 	        write "Total waste (Kg/pc): "  		+ ((from_prod_total + from_res_total)/length(resident) )	with_precision(2);
-	        write "Total organic (Kg/pc):" 		+ ((from_res_org + from_prod_org)/length(resident)) 			with_precision(2);
-	        write "Total residual (Kg/pc): "	+ ((from_prod_mix + from_res_mix)/length(resident)) 			with_precision(2);       
-	        write "Total recyclable (Kg/pc): " 	+ ((from_prod_pak+ from_res_pak)/length(resident)) 				with_precision(2);
+	        write "Total organic (Kg/pc):" 		+ ((from_res_waste[0] + from_prod_org)/length(resident)) 			with_precision(2);
+	        write "Total residual (Kg/pc): "	+ ((from_prod_mix + from_res_waste[1])/length(resident)) 			with_precision(2);       
+	        write "Total recyclable (Kg/pc): " 	+ ((from_prod_pak+ from_res_waste[2])/length(resident)) 				with_precision(2);
         
         
         	// kPIS
@@ -459,9 +556,9 @@ global {
 			// After the year, and the values of the variables are transfered, 
 			// The bins are returned to 0
     		from_res_total 			<-0.0;
-			from_res_org 			<-0.0;
-			from_res_mix 			<-0.0;
-			from_res_pak 			<-0.0;
+			from_res_waste[0] 			<-0.0;
+			from_res_waste[1] 			<-0.0;
+			from_res_waste[2] 			<-0.0;
 			res_waste_in_bin[0, 0] 			<-0.0;
 			res_waste_in_bin[1, 0] 			<-0.0;
 			res_waste_in_bin[2, 0] 			<-0.0;
@@ -471,9 +568,9 @@ global {
 			res_waste_in_bin[0, 2] 			<-0.0;
 			res_waste_in_bin[1, 2] 			<-0.0;
 			res_waste_in_bin[2, 2] 			<-0.0;			
-			KPI_org 				<-0.0;
-			KPI_mix 				<-0.0;
-			KPI_pak 				<-0.0;
+			KPI_waste[0] 				<-0.0;
+			KPI_waste[1] 				<-0.0;
+			KPI_waste[2] 				<-0.0;
 			KPI_avg 				<-0.0;
 
         }
@@ -524,9 +621,11 @@ species scheduler schedules: house_hold+ shuffle(resident)  + collector  + bin;
 species prod_build schedules: []{
 	rgb color <- #grey;
 	
-	float mix_cc;
-	float org_cc;
-	float pak_cc;
+	matrix<float> bin_cc <- 0.0 as_matrix({n_waste_type, 1});
+	
+//	float waste_cc[1];
+//	float waste_cc[0];
+//	float waste_cc[2];
 	
 	//matrix to track waste, order: org, mix, pak
 	//row: waste type, column: bin
@@ -568,49 +667,70 @@ species house_hold schedules: []{ //
 	
 	//matrix to track waste, order: org, mix, pak
 	//row: waste type, column: bin
-	matrix waste_in_bin <- 0.0 as_matrix({3, 3}); 
+	matrix<float> waste_in_bin <- 0.0 as_matrix({n_waste_type, n_bin_type}); 
+	matrix<float> bin_max <- 0.0 as_matrix({n_bin_type, 1});
+	matrix<float> bin_cc <- 0.0 as_matrix({n_bin_type, 1});
+	matrix<int> bin_tick <- 0 as_matrix({n_bin_type, 1});
 	
-	float mix_max <- rnd(1.0,1.5);// In Kg
-	float mix_cc;
-	int mix_tick <-0;
-	bool hh_mix_full <- mix_cc = 0 ? false : true;
+	matrix<bool> hh_bin_full <- false as_matrix({n_bin_type, 1});
+	
+	//Move to the creation
+	//float waste_max[1] <- rnd(1.0,1.5);// In Kg
+	//float waste_capacity[1];
+	//int waste_tick[1] <-0;
+	//bool hh_waste_full[1] <- waste_cc[1] = 0 ? false : true;
 	
 	//float org_in_mix;	waste_in_bin[0, 1]
 	//float org_in_mix;
 //	float mix_in_mix;	
 //	float pak_in_mix;
 	
-	float org_max <- rnd(1.0,1.5);// In Kg
-	float org_cc;
-	int org_tick <-0;
-	bool hh_org_full  <- org_cc = 0 ? false : true;
+	//Move to the creation part
+	//float org_max <- rnd(1.0,1.5);// In Kg
+	//waste_max[0] <- rnd(1.0,1.5);// In Kg
+	
+	//float waste_capacity[0];
+	//int waste_tick[0] <-0;
+	//bool hh_waste_full[0]  <- waste_cc[0] = 0 ? false : true;
 //	float org_in_org;	
 //	float mix_in_org;	
 //	float pak_in_org;
 
-
-	float pak_max <-rnd(1.0,2.0); // In Kg
-	float pak_cc;
-	int pak_tick <-0;
-	bool hh_pak_full  <- pak_cc = 0 ? false : true;
+	//Move to the creation part
+	//float pak_max <-rnd(1.0,2.0); // In Kg
+	//waste_max[2] <-rnd(1.0,2.0); // In Kg
+	
+	//float waste_capacity[2];
+	//int waste_tick[2] <-0;
+	//bool hh_waste_full[2]  <- waste_cc[2] = 0 ? false : true;
 //	float org_in_pak;	
 //	float mix_in_pak;	
 //	float pak_in_pak;
 	
 	int space_bin min:0 max: 100;
 	
+	//LOOP REPLACEMENT, FOR GENERALIZATION
 	// The following reflexes that degreade waste
-	reflex org_decompose when: (org_tick !=0) {
-		org_tick <- org_tick + 1;		
+	reflex decompose {
+		loop i from:0 to: n_bin_type - 1 {
+			if (bin_tick[i] != 0) {
+				bin_tick[i] <- bin_tick[i] + 1;
+			}
+		}
+		write "In household bin: " + waste_in_bin[3, 0] + waste_in_bin[3, 1] + waste_in_bin[3, 2];
 	}
 	
-	reflex mix_decompose when: (mix_tick !=0) {
-		mix_tick <- mix_tick + 1;		
-	}
-	
-	reflex pak_decompose when: (pak_tick !=0) {
-		pak_tick <- pak_tick + 1;		
-	}
+//	reflex org_decompose when: (waste_tick[0] !=0) {
+//		waste_tick[0] <- waste_tick[0] + 1;		
+//	}
+//	
+//	reflex mix_decompose when: (waste_tick[1] !=0) {
+//		waste_tick[1] <- waste_tick[1] + 1;		
+//	}
+//	
+//	reflex pak_decompose when: (waste_tick[2] !=0) {
+//		waste_tick[2] <- waste_tick[2] + 1;		
+//	}
 	
 }
 
@@ -645,7 +765,10 @@ species bin  schedules: [] {//
 	float current_cap;
 	int used;
 	
-	matrix waste <- matrix ([0.0, 0.0, 0.0]);
+	matrix<bool> type_bool <- false as_matrix({n_bin_type, 1});
+	
+	matrix<float> waste <- 0.0 as_matrix({n_waste_type, 1});
+	//matrix<float> waste <- matrix ([0.0, 0.0, 0.0]);
 
 	//float org;
 	//float waste[0];
@@ -653,10 +776,14 @@ species bin  schedules: [] {//
 	//float waste[1];
 	//float pak;
 	//float waste[2];
-
-	int info_org <- global_org_info min:0 max:100;
-	int info_mix <- global_mix_info min:0 max:100;
-	int info_pak <- global_pak_info min:0 max:100;
+	
+	//Setting boundary at the creation might work // Dont work
+	//matrix<int> info_bin <- 0 as_matrix({n_waste_type, 1});
+	int info_bin <- 0;
+	
+//	int info_bin[0] <- global_org_info min:0 max:100;
+//	int info_bin[1] <- global_mix_info min:0 max:100;
+//	int info_bin[2] <- global_pak_info min:0 max:100;
 	
 	int pop;
 		
@@ -679,39 +806,41 @@ species collector  schedules: [] {  //
 
 	
 	reflex restart when: (cycle>1) and every(3# cycle){
-
-
-		
+	
 		// In kgrams
-		from_prod_org <- from_prod_org + (prod_build sum_of(each.org_cc)) with_precision(2);
-		from_prod_mix <- from_prod_mix + (prod_build sum_of(each.mix_cc)) with_precision(2);
-		from_prod_pak <- from_prod_pak + (prod_build sum_of(each.pak_cc)) with_precision(2);
+		from_prod_org <- from_prod_org + (prod_build sum_of(each.bin_cc[0])) with_precision(2);
+		from_prod_mix <- from_prod_mix + (prod_build sum_of(each.bin_cc[1])) with_precision(2);
+		from_prod_pak <- from_prod_pak + (prod_build sum_of(each.bin_cc[2])) with_precision(2);
 		
 		// In grams
 		from_prod_total <- (from_prod_pak + from_prod_org + from_prod_mix);
 		
 		
 		ask prod_build {
-				
-		
-
-			org_cc <- 0.0;
-			mix_cc <- 0.0;
-			pak_cc <- 0.0;			
+			loop i from: 0 to: n_waste_type - 1{
+				bin_cc[i] <- 0;
+			}
+//			waste_cc[0] <- 0.0;
+//			waste_cc[1] <- 0.0;
+//			waste_cc[2] <- 0.0;			
 			
 		}
-		
-		
-		
+			
 	}
 	
 	float from_res_total;
-	float from_res_org;
-	float from_res_mix;
-	float from_res_pak;
 	
-	//matrix to track the type of waste in bins
-	matrix res_waste_in_bin <- 0.0 as_matrix({3, 3});
+	matrix<float> from_res_waste <- 0.0 as_matrix({n_waste_type, 1});
+	
+//	float from_res_waste[0];
+//	float from_res_waste[1];
+//	float from_res_waste[2];
+	
+	//matrix to track the type of waste in bins (on street bin)
+	matrix res_waste_in_bin <- 0.0 as_matrix({n_waste_type, n_bin_type});
+//	350.53999999999996; 84.66; 0.0; 0.0
+//	248.99999999999997; 2155.6399999999994; 246.66; 0.0
+//	0.0; 49.05; 660.7; 0.0
 	
 	//float res_waste_in_bin[0, 0]; //res_org_IN_org
 //	float res_waste_in_bin[1, 0]; //res_mix_IN_org
@@ -722,106 +851,135 @@ species collector  schedules: [] {  //
 //	float res_waste_in_bin[0, 2]; //res_org_IN_pak
 //	float res_waste_in_bin[1, 2]; //res_mix_IN_pak
 //	float res_waste_in_bin[2, 2]; //res_pak_IN_pak
+
+	matrix<float> KPI_waste <- 0.0 as_matrix({n_waste_type, 1});
 	
-	float KPI_org;
-	float KPI_mix;
-	float KPI_pak;
+//	float KPI_waste[0];
+//	float KPI_waste[1];
+//	float KPI_waste[2];
 	
 	float KPI_avg;
-
-
-
 	
 	reflex clean_frequent when: ((cycle>1) and every(collect_freq# cycle) and clean_on) or 
 								every(1094 #cycle) {
 		
-		// In grams
-		from_res_org <- from_res_org + (bin where (each.type='ORG') sum_of(each.current_cap)) with_precision(2);
-		from_res_mix <- from_res_mix + (bin where (each.type='MIX') sum_of(each.current_cap)) with_precision(2);
-		from_res_pak <- from_res_pak + (bin where (each.type='PAK') sum_of(each.current_cap)) with_precision(2);
+		write "Waste in bin from resident: \n" + res_waste_in_bin[3, 0] + " " + res_waste_in_bin[3, 1] + res_waste_in_bin[3, 2];
 		
+		//replace all by loop over all types of bin
 		
 		// In grams
-		from_res_total <- from_res_org + from_res_mix + from_res_pak;
+		//loop over all bin
+		loop i from: 0 to: n_bin_type - 1 {
+			from_res_waste[i] <- from_res_waste[i] + (bin where (each.type_bool[i] = true) sum_of(each.current_cap)) with_precision(2);
+			
+			//res_waste_in_bin index order (waste type, bin type)
+			loop j from: 0 to: n_waste_type - 1{
+				res_waste_in_bin[j, i] <- res_waste_in_bin[j, i] + (bin where (each.type_bool[i] = true) sum_of(each.waste[j])) with_precision(2);
+			}
+//			res_waste_in_bin[0, i] <- res_waste_in_bin[0, i] + (bin where (each.type_bool[i] = true) sum_of(each.waste[0])) with_precision(2);
+//			res_waste_in_bin[1, i] <- res_waste_in_bin[1, i] + (bin where (each.type_bool[i] = true) sum_of(each.waste[1])) with_precision(2);
+//			res_waste_in_bin[2, i] <- res_waste_in_bin[2, i] + (bin where (each.type_bool[i] = true) sum_of(each.waste[2])) with_precision(2);
+//		
+		}
 		
-		// org
-		res_waste_in_bin[0, 0] <- res_waste_in_bin[0, 0] + (bin where (each.type='ORG') sum_of(each.waste[0])) with_precision(2);
-		res_waste_in_bin[1, 0] <- res_waste_in_bin[1, 0] + (bin where (each.type='ORG') sum_of(each.waste[1])) with_precision(2);
-		res_waste_in_bin[2, 0] <- res_waste_in_bin[2, 0] + (bin where (each.type='ORG') sum_of(each.waste[2])) with_precision(2);
+//		from_res_waste[0] <- from_res_waste[0] + (bin where (each.type='ORG') sum_of(each.current_cap)) with_precision(2);
+//		from_res_waste[1] <- from_res_waste[1] + (bin where (each.type='MIX') sum_of(each.current_cap)) with_precision(2);
+//		from_res_waste[2] <- from_res_waste[2] + (bin where (each.type='PAK') sum_of(each.current_cap)) with_precision(2);
+		
+		
+//		// In grams
+		from_res_total <- sum(from_res_waste); //from_res_waste[0] + from_res_waste[1] + from_res_waste[2];
+//		
+//		// org
+//		res_waste_in_bin[0, 0] <- res_waste_in_bin[0, 0] + (bin where (each.type='ORG') sum_of(each.waste[0])) with_precision(2);
+//		res_waste_in_bin[1, 0] <- res_waste_in_bin[1, 0] + (bin where (each.type='ORG') sum_of(each.waste[1])) with_precision(2);
+//		res_waste_in_bin[2, 0] <- res_waste_in_bin[2, 0] + (bin where (each.type='ORG') sum_of(each.waste[2])) with_precision(2);
+//				
+//			
+//		// mix
+//		res_waste_in_bin[0, 1] <- res_waste_in_bin[0, 1] + (bin where (each.type='MIX') sum_of(each.waste[0])) with_precision(2);
+//		res_waste_in_bin[1, 1] <- res_waste_in_bin[1, 1] + (bin where (each.type='MIX') sum_of(each.waste[1])) with_precision(2);
+//		res_waste_in_bin[2, 1] <- res_waste_in_bin[2, 1] + (bin where (each.type='MIX') sum_of(each.waste[2])) with_precision(2);
+//
+//			
+//		// pak
+//		res_waste_in_bin[0, 2] <- res_waste_in_bin[0, 2] + (bin where (each.type='PAK') sum_of(each.waste[0])) with_precision(2);
+//		res_waste_in_bin[1, 2] <- res_waste_in_bin[1, 2] + (bin where (each.type='PAK') sum_of(each.waste[1])) with_precision(2);
+//		res_waste_in_bin[2, 2] <- res_waste_in_bin[2, 2] + (bin where (each.type='PAK') sum_of(each.waste[2])) with_precision(2);
+
+		loop i from:0 to: n_waste_type - 1{
+			try{KPI_waste[i] <- ((res_waste_in_bin[i, i]/from_res_waste[i])*100) with_precision(2);}
+		}
+		
+//		try{KPI_waste[0] <- ((res_waste_in_bin[0, 0]/from_res_waste[0])*100) with_precision(2);}
+//		try{KPI_waste[1] <- ((res_waste_in_bin[1, 1]/from_res_waste[1])*100) with_precision(2);}	
+//		try{KPI_waste[2] <- ((res_waste_in_bin[2, 2]/from_res_waste[2])*100) with_precision(2);}
+		
+//		try{KPI_avg <- (KPI_waste[2] + KPI_waste[1] + KPI_waste[0])/3 with_precision(2);}
+		try{KPI_avg <- sum(KPI_waste)/n_waste_type with_precision(2);}
+		
+		ask bin {
+			used 		<- 	0;
+			loop i from:0 to:length(waste) - 1{
+				waste[i] <- 0.0;
+			}
+//			waste[0] 		<- 	0.0;
+//			waste[1] 		<- 	0.0;
+//			waste[2] 		<- 	0.0;
+			current_cap <-	0.0;				
+		}
 				
-			
-		// mix
-		res_waste_in_bin[0, 1] <- res_waste_in_bin[0, 1] + (bin where (each.type='MIX') sum_of(each.waste[0])) with_precision(2);
-		res_waste_in_bin[1, 1] <- res_waste_in_bin[1, 1] + (bin where (each.type='MIX') sum_of(each.waste[1])) with_precision(2);
-		res_waste_in_bin[2, 1] <- res_waste_in_bin[2, 1] + (bin where (each.type='MIX') sum_of(each.waste[2])) with_precision(2);
-
-			
-		// pak
-		res_waste_in_bin[0, 2] <- res_waste_in_bin[0, 2] + (bin where (each.type='PAK') sum_of(each.waste[0])) with_precision(2);
-		res_waste_in_bin[1, 2] <- res_waste_in_bin[1, 2] + (bin where (each.type='PAK') sum_of(each.waste[1])) with_precision(2);
-		res_waste_in_bin[2, 2] <- res_waste_in_bin[2, 2] + (bin where (each.type='PAK') sum_of(each.waste[2])) with_precision(2);
-			
-		try{KPI_org <- ((res_waste_in_bin[0, 0]/from_res_org)*100) with_precision(2);}
-		try{KPI_mix <- ((res_waste_in_bin[1, 1]/from_res_mix)*100) with_precision(2);}	
-		try{KPI_pak <- ((res_waste_in_bin[2, 2]/from_res_pak)*100) with_precision(2);}
+	}
 		
-		try{KPI_avg <- (KPI_pak + KPI_mix + KPI_org)/3 with_precision(2);}
-
-
+	
+	action empty_n_clean {		
+		loop i from: 0 to: n_bin_type - 1 {
+			from_res_waste[i] <- from_res_waste[i] + (bin where (each.type_bool[i] = true) sum_of(each.current_cap)) with_precision(2);
+			
+			loop j from:0 to: n_waste_type - 1 {
+				res_waste_in_bin[j, i] <- from_res_waste[j, i] + (bin where (each.type_bool[i] = true) sum_of(each.waste[j])) with_precision(2);			
+			}
+			//res_waste_in_bin index order (waste type, bin type)
+			res_waste_in_bin[0, i] <- from_res_waste[0, i] + (bin where (each.type_bool[i] = true) sum_of(each.waste[0])) with_precision(2);
+			res_waste_in_bin[1, i] <- from_res_waste[1, i] + (bin where (each.type_bool[i] = true) sum_of(each.waste[1])) with_precision(2);
+			res_waste_in_bin[2, i] <- from_res_waste[2, i] + (bin where (each.type_bool[i] = true) sum_of(each.waste[2])) with_precision(2);
+		}
+		
+//		from_res_waste[0] <- from_res_waste[0] + bin where (each.type='ORG') sum_of(each.current_cap)  with_precision(2);
+//		from_res_waste[1] <- from_res_waste[1] + bin where (each.type='MIX') sum_of(each.current_cap)  with_precision(2);
+//		from_res_waste[2] <- from_res_waste[2] + bin where (each.type='PAK') sum_of(each.current_cap)  with_precision(2);
+		
+//		from_res_total <- (from_res_waste[0] + from_res_waste[1] + from_res_waste[2]); //*0.001
+		from_res_total <- sum(from_res_waste);
+			
+//		// org
+//		res_waste_in_bin[0, 0] <- from_res_waste[0] + bin where (each.type='ORG') sum_of(each.waste[0])  with_precision(2);
+//		res_waste_in_bin[1, 0] <- from_res_waste[1] + bin where (each.type='ORG') sum_of(each.waste[1])  with_precision(2);
+//		res_waste_in_bin[2, 0] <- from_res_waste[2] + bin where (each.type='ORG') sum_of(each.waste[2])  with_precision(2);
+//			
+//		// org
+//		res_waste_in_bin[0, 1] <- from_res_waste[0] + bin where (each.type='MIX') sum_of(each.waste[0])  with_precision(2);
+//		res_waste_in_bin[1, 1] <- from_res_waste[1] + bin where (each.type='MIX') sum_of(each.waste[1])  with_precision(2);
+//		res_waste_in_bin[2, 1] <- from_res_waste[2] + bin where (each.type='MIX') sum_of(each.waste[2])  with_precision(2);
+//			
+//		// org
+//		res_waste_in_bin[0, 2] <- from_res_waste[0] + bin where (each.type='PAK') sum_of(each.waste[0])  with_precision(2);
+//		res_waste_in_bin[1, 2] <- from_res_waste[1] + bin where (each.type='PAK') sum_of(each.waste[1])  with_precision(2);
+//		res_waste_in_bin[2, 2] <- from_res_waste[2] + bin where (each.type='PAK') sum_of(each.waste[2])  with_precision(2);
 			
 		ask bin {
 			used 		<- 	0;
-			waste[0] 		<- 	0.0;
-			waste[1] 		<- 	0.0;
-			waste[2] 		<- 	0.0;
+			loop i from:0 to:length(waste) - 1{
+				waste[i] <- 0.0;
+			}
+//			waste[0] 		<- 	0.0;
+//			waste[1] 		<- 	0.0;
+//			waste[2] 		<- 	0.0;
 			current_cap <-	0.0;				
-		}
-		
-
-
+		}								
 		
 	}
-	
-	
-	
-	action empty_n_clean {
-		from_res_org <- from_res_org + bin where (each.type='ORG') sum_of(each.current_cap)  with_precision(2);
-		from_res_mix <- from_res_mix + bin where (each.type='MIX') sum_of(each.current_cap)  with_precision(2);
-		from_res_pak <- from_res_pak + bin where (each.type='PAK') sum_of(each.current_cap)  with_precision(2);
 		
-		from_res_total <- (from_res_org + from_res_mix + from_res_pak); //*0.001
-			
-		// org
-		res_waste_in_bin[0, 0] <- from_res_org + bin where (each.type='ORG') sum_of(each.waste[0])  with_precision(2);
-		res_waste_in_bin[1, 0] <- from_res_mix + bin where (each.type='ORG') sum_of(each.waste[1])  with_precision(2);
-		res_waste_in_bin[2, 0] <- from_res_pak + bin where (each.type='ORG') sum_of(each.waste[2])  with_precision(2);
-			
-		// org
-		res_waste_in_bin[0, 1] <- from_res_org + bin where (each.type='MIX') sum_of(each.waste[0])  with_precision(2);
-		res_waste_in_bin[1, 1] <- from_res_mix + bin where (each.type='MIX') sum_of(each.waste[1])  with_precision(2);
-		res_waste_in_bin[2, 1] <- from_res_pak + bin where (each.type='MIX') sum_of(each.waste[2])  with_precision(2);
-			
-		// org
-		res_waste_in_bin[0, 2] <- from_res_org + bin where (each.type='PAK') sum_of(each.waste[0])  with_precision(2);
-		res_waste_in_bin[1, 2] <- from_res_mix + bin where (each.type='PAK') sum_of(each.waste[1])  with_precision(2);
-		res_waste_in_bin[2, 2] <- from_res_pak + bin where (each.type='PAK') sum_of(each.waste[2])  with_precision(2);
-			
-		ask bin {
-			used 		<- 	0;
-			waste[0] 		<- 	0.0;
-			waste[1] 		<- 	0.0;
-			waste[2] 		<- 	0.0;
-			current_cap <-	0.0;				
-		}
-			
-		
-		
-	
-		
-	}
-	
-	
-	
 	
 }
 
@@ -834,12 +992,13 @@ species resident schedules: [] { //
 	point my_work;
 	prod_build work_place;		
 	house_hold h_unit;
-
+	
+	
 	matrix<bin> near_bin;
 	
-	bin near_bin_org;
-	bin near_bin_mix;
-	bin near_bin_pak;	
+//	bin near_bin[0];
+//	bin near_bin[1];
+//	bin near_bin[2];	
 	
 	list<resident> my_org_comm;		
 	list<resident> my_mix_comm;		
@@ -849,13 +1008,12 @@ species resident schedules: [] { //
 	list<resident> roomies_list;
 	list<resident> colleg_list;			
 	
-	bool home_office;	
+	bool home_office;
 	bool head_work 	<- false;
 	bool at_work 	<- false;
 	bool work_done <- at_work? true:false;
 	int q_consume;
-	
-	
+		
 	reflex restart when: (cycle>1) and every(3# cycle){
 
 		head_work				<- flip(early_start_proba) ? true:false;
@@ -913,19 +1071,27 @@ species resident schedules: [] { //
 	//// GET WASTE
 	/////////////////////////////////////
 	
-	
+	//       NEED TO BE MODIFIED        //
 	//will come back to you later
-	matrix set_consumption <- 0.0 as_matrix({3, 3});
-	float set_consumption_org min:0.0 max:1.0;		
-	float set_consumption_pak min:0.0 max:1.0;	
-	float set_consumption_mix min:0.0 max:1.0;
+	//Change to use MATRIX
+	//It might not necessary to set the boundary, might be good for runtime optimization
+	matrix<float> set_consumption <- 0.0 as_matrix({n_waste_type, 1});
 	
-	matrix<int> budget_waste <- matrix([0, 0, 0]);
+//	float set_consumption[0] min:0.0 max:1.0;		
+//	float set_consumption[2] min:0.0 max:1.0;	
+//	float set_consumption[1] min:0.0 max:1.0;
+	
+	//matrix<int> budget_waste <- matrix([0, 0, 0]);
+	matrix<int> budget_waste <- 0 as_matrix({n_waste_type, 1});
+	
 	//int budget_waste[0]; //budget_org
 	//int budget_waste[1]; //budget_mix
-	//int budget_waste[2];	//budget_pak
+	//int budget_waste[2];	//budget_pak		
 	
-	matrix<int> current_waste <- matrix([0, 0, 0]);
+	//matrix<int> current_waste <- matrix([0, 0, 0]);
+	matrix<int> current_waste <- 0 as_matrix({n_waste_type, 1});
+	
+	
 //	int current_waste[0]; //current_org
 //	int current_waste[1]; //current_mix
 //	int current_waste[2]; //current_pak
@@ -937,74 +1103,94 @@ species resident schedules: [] { //
 		// The variable q_consume defines what proportion of waste is generated in each step
 		// At the end of the action q_consume get a +1.
 		if ( q_consume = 0 ) {
-			set_consumption_pak 	<- rnd(0.00,  0.15) with_precision(2);		
-			set_consumption_org 	<- rnd(0.10,  0.45) with_precision(2);		
-			set_consumption_mix 	<- rnd(0.10,  0.35) with_precision(2);
+			//Assumption on the waste generation during the day
+			loop i from: 0 to: n_waste_type - 1{
+				set_consumption[i] 	<- rnd(0.00,  0.15) with_precision(2);
+			}
+//			set_consumption[2] 	<- rnd(0.00,  0.15) with_precision(2);		
+//			set_consumption[0] 	<- rnd(0.10,  0.45) with_precision(2);		
+//			set_consumption[1] 	<- rnd(0.10,  0.35) with_precision(2);
 		}
 		
 		if ( q_consume = 1 ) {
-			set_consumption_pak 	<- rnd(0.00,  0.25) with_precision(2);		
-			set_consumption_org 	<- rnd(0.20,  0.35) with_precision(2);		
-			set_consumption_mix 	<- rnd(0.00,  0.25) with_precision(2);
+			loop i from: 0 to: n_waste_type - 1{
+				set_consumption[i] 	<- rnd(0.00,  0.25) with_precision(2);	
+			}
+//			set_consumption[2] 	<- rnd(0.00,  0.25) with_precision(2);		
+//			set_consumption[0] 	<- rnd(0.20,  0.35) with_precision(2);		
+//			set_consumption[1] 	<- rnd(0.00,  0.25) with_precision(2);
 		}
 		
 		// As waste gets generated, transfered from the budget of waste,
 		// to the current waste of different types
 		
-		//////////////////////////// ORG /////////////////////////
-		current_waste[0] 		<- int(budget_waste[0] * set_consumption_org);	
-		budget_waste[0] 			<- budget_waste[0] - current_waste[0];		
-
-		//////////////////////////// MIX /////////////////////////
-		current_waste[1] 			<- int(budget_waste[1] * set_consumption_mix); 		
-		budget_waste[1] 				<- budget_waste[1] - current_waste[1];
+//		loop i from:0 to:n_waste_type - 1{
+//			current_waste[i] 		<- int(budget_waste[i] * set_consumption_org);	
+//			budget_waste[i] 			<- budget_waste[i] - current_waste[i];
+//		}
 		
-		//////////////////////////// PAK /////////////////////////
-		current_waste[2] 			<- int(budget_waste[2] * set_consumption_pak); 		
-		budget_waste[2] 				<- budget_waste[2] - current_waste[2];	
+		loop i from: 0 to: n_waste_type - 1{
+			current_waste[i] 		<- int(budget_waste[i] * set_consumption[i]);	
+			budget_waste[i] 			<- budget_waste[i] - current_waste[i];		
+		}
+		q_consume <- q_consume + 1;	
+		
+//		//////////////////////////// ORG /////////////////////////
+//		current_waste[0] 		<- int(budget_waste[0] * set_consumption[0]);	
+//		budget_waste[0] 			<- budget_waste[0] - current_waste[0];		
+//
+//		//////////////////////////// MIX /////////////////////////
+//		current_waste[1] 			<- int(budget_waste[1] * set_consumption[1]); 		
+//		budget_waste[1] 				<- budget_waste[1] - current_waste[1];
+//		
+//		//////////////////////////// PAK /////////////////////////
+//		current_waste[2] 			<- int(budget_waste[2] * set_consumption[2]); 		
+//		budget_waste[2] 				<- budget_waste[2] - current_waste[2];	
 				
 		// Q waste is added one, so next time a different amount of waste gets assigned
-		q_consume <- q_consume + 1;		
 	}
 	
 	// This action is triggered to 
 	// consume the last part of waste not consumed during the preious steps
 	action get_d_rest {
-
-		current_waste[0] <- budget_waste[0];
-		current_waste[2] <- budget_waste[2];
-		current_waste[1] <- budget_waste[1];	
+		loop i from:0 to:n_waste_type - 1{
+			current_waste[i] <- budget_waste[i];
+		}
+		q_consume <- 0;
+		
+//		current_waste[0] <- budget_waste[0];
+//		current_waste[2] <- budget_waste[2];
+//		current_waste[1] <- budget_waste[1];	
 		
 		// After the consumption of all waste is dones, q_consume variable is set to 0
-		// q_consume is the trigger that defines the percentage of waste to get during the day
-		q_consume <- 0;		
+		// q_consume is the trigger that defines the percentage of waste to get during the day			
 	}
 	
 	
 	//This action is used to generate new waste,
 	// This action is casted in the restart reflex which occurs very day
 	action reset_waste_budget {
-		budget_waste[0] <- int(gauss(org_day, org_day_sd));
-		budget_waste[1] <- int(gauss(mix_day, mix_day_sd));
-		budget_waste[2] <- int(gauss(pak_day, pak_day_sd));
+		loop i from: 0 to:n_waste_type - 1 {
+			//CHANGE THE ORG_DAY TO MATRIX //DONE
+			budget_waste[i] <- int(gauss(mean_waste_day[i], waste_day_std[i]));
+		}
+//		budget_waste[0] <- int(gauss(mean_waste_day[0], waste_day_std[0]));
+//		budget_waste[1] <- int(gauss(mean_waste_day[1], waste_day_std[1]));
+//		budget_waste[2] <- int(gauss(mean_waste_day[2], waste_day_std[2]));
 	
 		
 	}
 	
 
-	action gen_waste { 
-
-		
+	action gen_waste { 	
 		//When q_consume 	-> 0;1
 		if q_consume <=1 {
 		
-
 			do get_waste;
 		} 
 		// When q_consume 	-> 2				
 		else {
 			do get_d_rest;
-
 
 		} 
 		
@@ -1045,8 +1231,7 @@ species resident schedules: [] { //
 							gauss(sn_2_int_b,sn_2_int_se) * soc_norm  + 
 							gauss(att_2_int_b,att_2_int_se) * attitude  +  
 							gauss(pbc_2_int_b,pbc_2_int_se) * pbc		+
-							gauss(know_2_int_b,know_2_int_se) * know) /int_fine_tune) with_precision(2);
-							
+							gauss(know_2_int_b,know_2_int_se) * know) /int_fine_tune) with_precision(2);							
 		
 	}
 	
@@ -1185,9 +1370,18 @@ species resident schedules: [] { //
 		
 		float know_old <- know;
 		
-			avg_bin_info <- int((near_bin_org.info_org + 
-			near_bin_mix.info_mix + 
-			near_bin_pak.info_pak) /3);		
+//		list<int> temporal <- 0 as_
+//		loop i from:0 to:n_waste_type - 1{
+//			
+//		}	
+//		avg_bin_info <- int(list() sum_of(each.info_bin));
+
+			
+//		avg_bin_info <- int((near_bin[0].info_bin[0] + 
+//		near_bin[1].info_bin[1] + 
+//		near_bin[2].info_bin[2]) /3);		
+		
+		avg_bin_info <- int(near_bin sum_of(each.info_bin) / 3);
 		
 		know <- (gauss(know_b,know_se) + 
 			gauss(info_b,info_se) * avg_bin_info) / know_fine_tune;
@@ -1215,15 +1409,14 @@ species resident schedules: [] { //
  // The models uses the variable hygenic (used) as the item to inside the construct
  // This construct also includes percieved space in waste bins
 
-
 	action pbc {
 		
-		hygenic 	<- int(
-			(near_bin_org.used / near_bin_org.pop)*100 + 
-				(near_bin_mix.used/near_bin_mix.pop)*100 + 
-					(near_bin_pak.used/near_bin_pak.pop)*100);
-					
-		
+		hygenic <- int(near_bin sum_of((each.used / each.pop)*100));
+//		hygenic 	<- int(
+//			(near_bin[0].used / near_bin[0].pop)*100 + 
+//				(near_bin[1].used/near_bin[1].pop)*100 + 
+//					(near_bin[2].used/near_bin[2].pop)*100);
+				
 		float pbc_old <- pbc;
 		
 		pbc <- (gauss(pbc_b,pbc_se) + 
@@ -1251,22 +1444,23 @@ species resident schedules: [] { //
 	string beh_label;
 	int beh_level;
 	
-	matrix<int> p_throw <- 0.0 as_matrix({3, 3, 3});
+	matrix p_throw <- 0 as_matrix({n_waste_type, n_bin_type});
 	
 	
-	int p_mix_in_mix min:0 max:100;
-	int p_mix_in_org min:0 max:100;
-	int	p_mix_in_pak min:0 max:100;
-		
-	//int	p_org_in_org min:0 max:100;
-	int	p_org_in_org min:0 max:100;
-	int	p_org_in_mix min:0 max:100;
-	int	p_org_in_pak min:0 max:100;
-		
-	int	p_pak_in_pak min:0 max:100;
-	int	p_pak_in_mix min:0 max:100;
-	int	p_pak_in_org min:0 max:100;
-	
+//	it might not necessary to set the upper bound to 100, because of the action check
+//	int p_throw[1, 1] min:0 max:100;
+//	int p_throw[1, 0] min:0 max:100;
+//	int	p_throw[1, 2] min:0 max:100;
+//		
+//	//int	p_org_in_org min:0 max:100;
+//	int	p_throw[0, 0] min:0 max:100;
+//	int	p_thorw[0, 1] min:0 max:100;
+//	int	p_throw[0, 2] min:0 max:100;
+//		
+//	int	p_throw[2, 2] min:0 max:100;
+//	int	p_throw[2, 1] min:0 max:100;
+//	int	p_throw[2, 0] min:0 max:100;
+//	
 	
 	action main_beh {
 		// Placeholders for more extensive models where behaviour could
@@ -1280,34 +1474,34 @@ species resident schedules: [] { //
 	action checks {
 		
 		// For Mix
-		if (p_mix_in_mix+p_mix_in_org) > 100 {
-			p_mix_in_org <-0;
-			p_mix_in_pak <-0;} 
+		if (p_throw[1, 1]+p_throw[1, 0]) > 100 {
+			p_throw[1, 0] <-0;
+			p_throw[1, 2] <-0;} 
 			
-		else if ((p_mix_in_mix+p_mix_in_org) = 100) {
-				p_mix_in_pak <-0; } 
+		else if ((p_throw[1, 1]+p_throw[1, 0]) = 100) {
+				p_throw[1, 2] <-0; } 
 								
-		else {p_mix_in_pak <- 100 - p_mix_in_mix - p_mix_in_org;}
+		else {p_throw[1, 2] <- 100 - p_throw[1, 1] - p_throw[1, 0];}
 		
 		// For Org		
-		if (p_org_in_org+p_org_in_mix) > 100 {
-			p_org_in_mix <-0;
-			p_org_in_pak <-0;} 
+		if (p_throw[0, 0] + p_throw[0, 1]) > 100 {
+			p_throw[0, 1] <-0;
+			p_throw[0, 2] <-0;} 
 			
-		else if ((p_org_in_org+p_org_in_mix) = 100) {
-				p_org_in_pak <-0; } 
+		else if ((p_throw[0, 0]+p_throw[0, 1]) = 100) {
+				p_throw[0, 2] <-0; } 
 								
-		else {p_org_in_pak <- 100 - p_org_in_mix - p_org_in_org;}
+		else {p_throw[0, 2] <- 100 - p_throw[0, 1] - p_throw[0, 0];}
 		
 		// For Pak	
-		if (p_pak_in_pak+p_pak_in_mix) > 100 {
-			p_pak_in_mix <-0;
-			p_pak_in_org <-0;} 
+		if (p_throw[2, 2]+p_throw[2, 1]) > 100 {
+			p_throw[2, 1] <-0;
+			p_throw[2, 0] <-0;} 
 			
-		else if ((p_pak_in_pak+p_pak_in_mix) = 100) {
-				p_pak_in_org <-0; } 
+		else if ((p_throw[2, 2]+p_throw[2, 1]) = 100) {
+				p_throw[2, 0] <-0; } 
 								
-		else {p_pak_in_org <- 100 - p_pak_in_pak - p_pak_in_mix;}
+		else {p_throw[2, 0] <- 100 - p_throw[2, 2] - p_throw[2, 1];}
 
 		
 		
@@ -1336,64 +1530,64 @@ species resident schedules: [] { //
 	
 		
 	action set_beh_4_lines {
-	
-	
-		do classify_4;		
 
-					
+		do classify_4;		
+			
 		if (beh_level = 1) {
 			// Sorting probability
 			// OF MIX
-			p_mix_in_mix <- int(truncated_gauss(((2.17*behaviour)+0),2.5));  //ok
-			p_mix_in_org <- 0;	 		
+			p_throw[1, 1] <- int(truncated_gauss(((2.17*behaviour)+0),2.5));  //ok
+			p_throw[1, 0] <- 0;	 		
 
 			// OF ORG
-			p_org_in_org <- int(truncated_gauss(((1*behaviour)+0),2.5));       //ok
-			p_org_in_mix <- int(truncated_gauss(((-1.34*behaviour)+100),5));	//ok
+			p_throw[0, 0] <- int(truncated_gauss(((1*behaviour)+0),2.5));       //ok
+			p_throw[0, 1] <- int(truncated_gauss(((-1.34*behaviour)+100),5));	//ok
 			
 					
 			// OF PAK
-			p_pak_in_pak <- int(truncated_gauss(((2*behaviour)+0),5));  //ok
-			p_pak_in_mix <- int(truncated_gauss(((-0.67*behaviour)+100),5));	//ok
+			p_throw[2, 2] <- int(truncated_gauss(((2*behaviour)+0),5));  //ok
+			p_throw[2, 1] <- int(truncated_gauss(((-0.67*behaviour)+100),5));	//ok
 			
-
+			//testes
+			p_throw[3, 2] <- int(truncated_gauss(((-0.67*behaviour)+100),5));	//ok
 						
 			}
 			
 		if (beh_level = 2) {
 			// Sorting probability
 			// OF MIX
-			p_mix_in_mix <- int(truncated_gauss(((2*behaviour) + 53),5)); //ok
-			p_mix_in_org <- 0;			
+			p_throw[1, 1] <- int(truncated_gauss(((2*behaviour) + 53),5)); //ok
+			p_throw[1, 0] <- 0;			
 
 			// OF ORG
-			p_org_in_org <- int(truncated_gauss(((0.8*behaviour)+21),5));   //ok
-			p_org_in_mix <-int(truncated_gauss(((-1.2*behaviour)+96),5));	//ok	
+			p_throw[0, 0] <- int(truncated_gauss(((0.8*behaviour)+21),5));   //ok
+			p_throw[0, 1] <-int(truncated_gauss(((-1.2*behaviour)+96),5));	//ok	
 	
 			// OF PAK
-			p_pak_in_pak <- int(truncated_gauss(((0.2*behaviour)+69),5));  //ok
-			p_pak_in_mix <- int(truncated_gauss(((-1.2*behaviour)+116),5));	//ok
+			p_throw[2, 2] <- int(truncated_gauss(((0.2*behaviour)+69),5));  //ok
+			p_throw[2, 1] <- int(truncated_gauss(((-1.2*behaviour)+116),5));	//ok
 			
-
-		
+			//tested
+			p_throw[3, 2] <- int(truncated_gauss(((-0.67*behaviour)+100),5));	//ok
 		}		
 
 		if (beh_level = 3) {
 
 			// Sorting probability
 			// OF MIX
-			p_mix_in_mix <- int(truncated_gauss(((0.3*behaviour) + 61),5)); //ok
-			p_mix_in_org <- int(truncated_gauss(2,2));			
+			p_throw[1, 1] <- int(truncated_gauss(((0.3*behaviour) + 61),5)); //ok
+			p_throw[1, 0] <- int(truncated_gauss(2,2));			
 
 			// OF ORG
-			p_org_in_org <- int(truncated_gauss(((0.8*behaviour)+23),5));  //ok
-			p_org_in_mix <- int(truncated_gauss(((-1*behaviour)+85),5));   //ok
+			p_throw[0, 0] <- int(truncated_gauss(((0.8*behaviour)+23),5));  //ok
+			p_throw[0, 1] <- int(truncated_gauss(((-1*behaviour)+85),5));   //ok
 
 			// OF PAK
-			p_pak_in_pak <- int(truncated_gauss(((0.3*behaviour)+66),5));  //ok
-			p_pak_in_mix <- int(truncated_gauss(((-1.3*behaviour)+118),5));	//ok
+			p_throw[2, 2] <- int(truncated_gauss(((0.3*behaviour)+66),5));  //ok
+			p_throw[2, 1] <- int(truncated_gauss(((-1.3*behaviour)+118),5));	//ok
 
-			
+			//tested
+			p_throw[3, 2] <- int(truncated_gauss(((-0.67*behaviour)+100),5));	//ok
 
 			}
 			
@@ -1401,27 +1595,25 @@ species resident schedules: [] { //
 
 			// Sorting probability
 			// OF MIX
-			p_mix_in_mix <- int(truncated_gauss(((0.8*behaviour) + 20),5)); //ok
-			p_mix_in_org <- int(truncated_gauss(1,1	));
+			p_throw[1, 1] <- int(truncated_gauss(((0.8*behaviour) + 20),5)); //ok
+			p_throw[1, 0] <- int(truncated_gauss(1,1	));
 
 			// OF ORG
-			p_org_in_org <- int(truncated_gauss(((0.8*behaviour)+20),5));  //ok
-			p_org_in_mix <- int(truncated_gauss(((-0.4*behaviour)+40),5)); //ok
+			p_throw[0, 0] <- int(truncated_gauss(((0.8*behaviour)+20),5));  //ok
+			p_throw[0, 1] <- int(truncated_gauss(((-0.4*behaviour)+40),5)); //ok
 
 			// OF PAK
-			p_pak_in_pak <- int(truncated_gauss(((0.6*behaviour)+40),5));  //ok
-			p_pak_in_mix <- int(truncated_gauss(((-1*behaviour)+100),5));	//ok
-
+			p_throw[2, 2] <- int(truncated_gauss(((0.6*behaviour)+40),5));  //ok
+			p_throw[2, 1] <- int(truncated_gauss(((-1*behaviour)+100),5));	//ok
+			
+			//tested
+			p_throw[3, 2] <- int(truncated_gauss(((-0.67*behaviour)+100),5));	//ok
 			
 		}		
 		
 		//Check ups
-		do checks;
-		
-		
-		
+		do checks;	
 	}
-	
 	
 	
 	////////////////////////////////////
@@ -1429,9 +1621,7 @@ species resident schedules: [] { //
 	////////////////////////////////////////7
 	int rnd_num;
 	
-	action internal_throw {
-	
-		
+	action internal_throw {	
 		rnd_num <- rnd(100);
 		
 		if (not(at_work)) {
@@ -1449,134 +1639,151 @@ species resident schedules: [] { //
 			} else {
 				do throw_prod;
 			}
-			
 			//
-		}		
-		
+		}			
 		do reset_currents;
-		
 	}
 	
 	// After the waste is transfered out to the waste bins
 	// the waste generated is set to 0
 	action reset_currents {
 		
-		current_waste[0] <-0;
-		current_waste[1] <-0;
-		current_waste[2] <-0;
-		org_dumped <- false;
-		mix_dumped <- false;
-		pak_dumped <- false;
+		//LOOP REPLACEMENT
+		loop i from: 0 to: n_waste_type - 1{
+			current_waste[i] <-0;
+			waste_dumped[i] <- false;
+		}
+//		current_waste[0] <-0;
+//		current_waste[1] <-0;
+//		current_waste[2] <-0;
+//		waste_dumped[0] <- false;
+//		waste_dumped[1] <- false;
+//		waste_dumped[2] <- false;
 	}
 	
-
-	bool org_dumped <- false;
-	bool mix_dumped <- false;
-	bool pak_dumped <- false;
+	//MATRIX REPLACEMENT
+	matrix<bool> waste_dumped <- false as_matrix({n_waste_type, 1});
+	
+//	bool waste_dumped[0] <- false;
+//	bool waste_dumped[1] <- false;
+//	bool waste_dumped[2] <- false;
 	
 	// Throw waste inside of their households bins
 	action internal_throw_home {		
-
+		
+		//GENERALIZATION MODIFICATION NEEDED
+		
 		////////// Throw organics
-		if(flip(p_org_in_org/100) and not(org_dumped)) {
+		if(flip(p_throw[0, 0]/100) and not(waste_dumped[0])) {
 		//if(p_org_in_org >= rnd_num and not(org_dumped)) {
 
-			h_unit.org_cc 			<- h_unit.org_cc + current_waste[0]*0.001;
+			h_unit.bin_cc[0] 			<- h_unit.bin_cc[0] + current_waste[0]*0.001;
 			h_unit.waste_in_bin[0, 0]		<- h_unit.waste_in_bin[0, 0] + current_waste[0]*0.001;		
-			if (h_unit.org_tick = 0) {h_unit.org_tick <- 1;} 
-			org_dumped <- true;
+			if (h_unit.bin_tick[0] = 0) {h_unit.bin_tick[0] <- 1;} 
+			waste_dumped[0] <- true;
 		}		
 		
-		if(flip(p_org_in_mix/100) and not(org_dumped)) {
+		if(flip(p_throw[0, 1]/100) and not(waste_dumped[0])) {
 		//if(p_org_in_mix >= rnd_num  and not(org_dumped)) {
 
-			h_unit.mix_cc 			<- h_unit.mix_cc + current_waste[0]*0.001;
+			h_unit.bin_cc[1] 			<- h_unit.bin_cc[1] + current_waste[0]*0.001;
 			h_unit.waste_in_bin[0, 1]		<- h_unit.waste_in_bin[0, 1] + current_waste[0]*0.001;
-			if (h_unit.mix_tick = 0) {h_unit.mix_tick <- 1;} 	
-			org_dumped <- true;		
+			if (h_unit.bin_tick[1] = 0) {h_unit.bin_tick[1] <- 1;} 	
+			waste_dumped[0] <- true;		
 		}
 
 		////////// Throw residuals
-		if(flip(p_mix_in_mix/100) and not(mix_dumped)) {			
+		if(flip(p_throw[1, 1]/100) and not(waste_dumped[1])) {			
 
-			h_unit.mix_cc 			<- h_unit.mix_cc + current_waste[1]*0.001;
+			h_unit.bin_cc[1] 			<- h_unit.bin_cc[1] + current_waste[1]*0.001;
 			h_unit.waste_in_bin[1, 1]		<- h_unit.waste_in_bin[1, 1] + current_waste[1]*0.001;	
-			if (h_unit.mix_tick = 0) {h_unit.mix_tick <- 1;} 
-			mix_dumped <- true;	
+			if (h_unit.bin_tick[1] = 0) {h_unit.bin_tick[1] <- 1;} 
+			waste_dumped[1] <- true;	
 		}
 		
-		if(flip(p_mix_in_org/100)  and not(mix_dumped)) {	
+		if(flip(p_throw[1, 0]/100)  and not(waste_dumped[1])) {	
 				
-			h_unit.org_cc 			<- h_unit.org_cc + current_waste[1]*0.001;
+			h_unit.bin_cc[0] 			<- h_unit.bin_cc[0] + current_waste[1]*0.001;
 			h_unit.waste_in_bin[1, 0]		<- h_unit.waste_in_bin[1, 0] + current_waste[1]*0.001;
-			if (h_unit.org_tick = 0) {h_unit.org_tick <- 1;} 	
-			mix_dumped <- true;	
+			if (h_unit.bin_tick[0] = 0) {h_unit.bin_tick[0] <- 1;} 	
+			waste_dumped[1] <- true;	
 		}		
 		
-		if(flip(p_mix_in_pak/100) and not(mix_dumped)) {	
+		if(flip(p_throw[1, 2]/100) and not(waste_dumped[1])) {	
 
-			h_unit.pak_cc 			<- h_unit.pak_cc + current_waste[1]*0.001;
+			h_unit.bin_cc[2] 			<- h_unit.bin_cc[2] + current_waste[1]*0.001;
 			h_unit.waste_in_bin[1, 2]		<- h_unit.waste_in_bin[1, 2] + current_waste[1]*0.001;		
-			if (h_unit.pak_tick = 0) {h_unit.pak_tick <- 1;} 	
-			mix_dumped <- true;	
+			if (h_unit.bin_tick[2] = 0) {h_unit.bin_tick[2] <- 1;} 	
+			waste_dumped[1] <- true;	
 		}
 		
 		////////// Throw packages
-		if(flip(p_pak_in_pak/100) and not(pak_dumped)) {		
+		if(flip(p_throw[2, 2]/100) and not(waste_dumped[2])) {		
 
-			h_unit.pak_cc 			<- h_unit.pak_cc + current_waste[2]*0.001;
+			h_unit.bin_cc[2] 			<- h_unit.bin_cc[2] + current_waste[2]*0.001;
 			h_unit.waste_in_bin[2, 2]		<- h_unit.waste_in_bin[2, 2] + current_waste[2]*0.001;		
-			if (h_unit.pak_tick = 0) {h_unit.pak_tick <- 1;} 	
-			pak_dumped <- true;
+			if (h_unit.bin_tick[2] = 0) {h_unit.bin_tick[2] <- 1;} 	
+			waste_dumped[2] <- true;
 		}		
 		
-		if(flip(p_pak_in_mix/100) and not(pak_dumped)) {
+		if(flip(p_throw[2, 1]/100) and not(waste_dumped[2])) {
 		
-			h_unit.mix_cc 			<- h_unit.mix_cc + current_waste[2]*0.001;
+			h_unit.bin_cc[1] 			<- h_unit.bin_cc[1] + current_waste[2]*0.001;
 			h_unit.waste_in_bin[2, 1]		<- h_unit.waste_in_bin[2, 1] + current_waste[2]*0.001;	
-			if (h_unit.mix_tick = 0) {h_unit.mix_tick <- 1;} 	
-			pak_dumped <- true;	
+			if (h_unit.bin_tick[1] = 0) {h_unit.bin_tick[1] <- 1;} 	
+			waste_dumped[2] <- true;	
 		}
+		
+		
+		////////// Throw the fourth thype of waste
+		if(flip(p_throw[3, 2]/100) and not(waste_dumped[2])) {		
+
+			h_unit.bin_cc[2] 			<- h_unit.bin_cc[2] + current_waste[3]*0.001;
+			h_unit.waste_in_bin[3, 2]		<- h_unit.waste_in_bin[3, 2] + current_waste[3]*0.001;		
+			if (h_unit.bin_tick[2] = 0) {h_unit.bin_tick[2] <- 1;} 	
+			waste_dumped[3] <- true;
+		}		
+		
 		
 	// Secure some dump - Process to make sure that some waste is dumped.
 	// In case the probabilities all pass and nothing has passed
-	if not(org_dumped) {
+	if not(waste_dumped[0]) {
 		
-		h_unit.mix_cc 			<- h_unit.mix_cc + current_waste[0]*0.001;
+		h_unit.bin_cc[1] 			<- h_unit.bin_cc[1] + current_waste[0]*0.001;
 		h_unit.waste_in_bin[0, 1]		<- h_unit.waste_in_bin[0, 1] + current_waste[0]*0.001;
-		if (h_unit.mix_tick = 0) {h_unit.mix_tick <- 1;} 	
-		org_dumped <- true;		
+		if (h_unit.bin_tick[1] = 0) {h_unit.bin_tick[1] <- 1;} 	
+		waste_dumped[0] <- true;		
 		}
 		
-	if not(mix_dumped) {
+	if not(waste_dumped[1]) {
 		if flip(0.8) {
 		
-			h_unit.org_cc 			<- h_unit.org_cc + current_waste[1]*0.001;
+			h_unit.bin_cc[0] 			<- h_unit.bin_cc[0] + current_waste[1]*0.001;
 			h_unit.waste_in_bin[1, 0]		<- h_unit.waste_in_bin[1, 0] + current_waste[1]*0.001;
-			if (h_unit.org_tick = 0) {h_unit.org_tick <- 1;} 	
-			mix_dumped <- true;		
+			if (h_unit.bin_tick[0] = 0) {h_unit.bin_tick[0] <- 1;} 	
+			waste_dumped[1] <- true;		
 			}
 		else {
 			
-			h_unit.pak_cc 			<- h_unit.pak_cc + current_waste[1]*0.001;
+			h_unit.bin_cc[2] 			<- h_unit.bin_cc[2] + current_waste[1]*0.001;
 			h_unit.waste_in_bin[1, 2]		<- h_unit.waste_in_bin[1, 2] + current_waste[1]*0.001;		
-			if (h_unit.pak_tick = 0) {h_unit.pak_tick <- 1;} 	
-			mix_dumped <- true;				
+			if (h_unit.bin_tick[2] = 0) {h_unit.bin_tick[2] <- 1;} 	
+			waste_dumped[1] <- true;				
 		}
 	}
 	
-	if not(pak_dumped) {
-		h_unit.mix_cc 			<- h_unit.mix_cc + current_waste[2]*0.001;
+	if not(waste_dumped[2]) {
+		h_unit.bin_cc[1] 			<- h_unit.bin_cc[1] + current_waste[2]*0.001;
 		h_unit.waste_in_bin[2, 1]		<- h_unit.waste_in_bin[2, 1] + current_waste[2]*0.001;	
-		if (h_unit.mix_tick = 0) {h_unit.mix_tick <- 1;} 	
-		pak_dumped <- true;
+		if (h_unit.bin_tick[1] = 0) {h_unit.bin_tick[1] <- 1;} 	
+		waste_dumped[2] <- true;
 	}
 	
 	
 	// make the bins full
-	if (h_unit.org_cc >= h_unit.org_max){h_unit.hh_org_full<-true;}
-	if (h_unit.mix_cc >= h_unit.mix_max){h_unit.hh_mix_full<-true;}
-	if (h_unit.pak_cc >= h_unit.pak_max){h_unit.hh_pak_full<-true;}		
+	if (h_unit.bin_cc[0] >= h_unit.bin_max[0]){h_unit.hh_bin_full[0]<-true;}
+	if (h_unit.bin_cc[1] >= h_unit.bin_max[1]){h_unit.hh_bin_full[1]<-true;}
+	if (h_unit.bin_cc[2] >= h_unit.bin_max[2]){h_unit.hh_bin_full[2]<-true;}		
 	
 	}
 	
@@ -1588,59 +1795,58 @@ species resident schedules: [] { //
 	// Theroy suggests that waste sorting at work could follow specific behavior
 	// on request this can be changed, and tpb behavior is included in previous versions.	
 	action throw_prod {
-
-		////////// Throw organics
-		work_place.org_cc 			<- work_place.org_cc + current_waste[0]*0.001;	
-					
-		////////// Throw residuals	
-		work_place.mix_cc 			<- work_place.mix_cc + current_waste[1]*0.001;				
+		loop i from:0 to: n_waste_type - 1{
+			work_place.bin_cc[i]	<- work_place.bin_cc[i] + current_waste[i]*0.001;
+		}
 		
-		////////// Throw packages
-		work_place.pak_cc 			<- work_place.pak_cc + current_waste[2]*0.001;	
+//		////////// Throw organics
+//		work_place.waste_cc[0] 			<- work_place.waste_cc[0] + current_waste[0]*0.001;	
+//					
+//		////////// Throw residuals	
+//		work_place.waste_cc[1] 			<- work_place.waste_cc[1] + current_waste[1]*0.001;				
+//		
+//		////////// Throw packages
+//		work_place.waste_cc[2] 			<- work_place.waste_cc[2] + current_waste[2]*0.001;	
 		
-	}
-	
+	}	
 	
 	// The action of transfering waste out is divided by waste types
 	// Since residents can throw waste incorrectly, if the percentage of miss soring is more than 50%
 	// This means that waste is not sorted	
 	
-	int	a min:0 max:100;
 	action transfer_org_out {		
 		//		Penalty
 		
-		a <- 150;
-		
-		write "Transfer Org out " + a;		
-		if (((h_unit.waste_in_bin[1, 0] + h_unit.waste_in_bin[2, 0]) / (h_unit.org_cc + 0.001)) >= thold_wrong_org) { /// 0.001 secures that the division is not 0
+
+		if (((h_unit.waste_in_bin[1, 0] + h_unit.waste_in_bin[2, 0]) / (h_unit.bin_cc[0] + 0.001)) >= thold_wrong_org) { /// 0.001 secures that the division is not 0
 	
 			
-			near_bin_mix.current_cap <- near_bin_mix.current_cap +  h_unit.org_cc;		
-			near_bin_mix.used <- near_bin_mix.used + 3;		
+			near_bin[1].current_cap <- near_bin[1].current_cap +  h_unit.bin_cc[0];		
+			near_bin[1].used <- near_bin[1].used + 3;		
 			
 			//Continue tracking types
-			near_bin_mix.waste[0] <- near_bin_mix.waste[0] + h_unit.waste_in_bin[0, 0]; //org in org
-			near_bin_mix.waste[1] <- near_bin_mix.waste[1] + h_unit.waste_in_bin[1, 0]; //mix in org
-			near_bin_mix.waste[2] <- near_bin_mix.waste[2] + h_unit.waste_in_bin[2, 0]; //pak in org
+			near_bin[1].waste[0] <- near_bin[1].waste[0] + h_unit.waste_in_bin[0, 0]; //org in org
+			near_bin[1].waste[1] <- near_bin[1].waste[1] + h_unit.waste_in_bin[1, 0]; //mix in org
+			near_bin[1].waste[2] <- near_bin[1].waste[2] + h_unit.waste_in_bin[2, 0]; //pak in org
 			
 		}
 		
 		else {				
-			near_bin_org.current_cap <- near_bin_org.current_cap +  h_unit.org_cc;		
-			near_bin_org.used <- near_bin_org.used + 1;
+			near_bin[0].current_cap <- near_bin[0].current_cap +  h_unit.bin_cc[0];		
+			near_bin[0].used <- near_bin[0].used + 1;
 			
 			//Continue tracking types
-			near_bin_org.waste[0] <- near_bin_org.waste[0] + h_unit.waste_in_bin[0, 0];
-			near_bin_org.waste[1] <- near_bin_org.waste[1] + h_unit.waste_in_bin[1, 0];
-			near_bin_org.waste[2] <- near_bin_org.waste[2] + h_unit.waste_in_bin[2, 0];
+			near_bin[0].waste[0] <- near_bin[0].waste[0] + h_unit.waste_in_bin[0, 0];
+			near_bin[0].waste[1] <- near_bin[0].waste[1] + h_unit.waste_in_bin[1, 0];
+			near_bin[0].waste[2] <- near_bin[0].waste[2] + h_unit.waste_in_bin[2, 0];
 			
-			write "Transfer org out correct, amount s" + h_unit.waste_in_bin[0, 0] + near_bin_org.waste[0] + near_bin_org.waste[1] + near_bin_org.waste[2];
+			//write "Transfer org out correct, amount s" + h_unit.waste_in_bin[0, 0] + near_bin[0].waste[0] + near_bin[0].waste[1] + near_bin[0].waste[2];
 		
 		}
 	
-		h_unit.org_cc 			<- 0.0;
-		h_unit.hh_org_full		<- false;
-		h_unit.org_tick 		<- 0;	
+		h_unit.bin_cc[0] 			<- 0.0;
+		h_unit.hh_bin_full[0]		<- false;
+		h_unit.bin_tick[0] 		<- 0;	
 		
 		// reseting after dump
 	 	h_unit.waste_in_bin[0, 0] <-0.0;	
@@ -1648,23 +1854,23 @@ species resident schedules: [] { //
 	 	h_unit.waste_in_bin[2, 0] <-0.0;
 		
 		q_empty_org <- q_empty_org + 1;
-		h_unit.org_max <- rnd(1.0,1.5);
+		h_unit.bin_max[0] <- rnd(1.0,1.5);
 	}
 
 	action transfer_mix_out {			
 		// simple			
-		near_bin_mix.current_cap <- near_bin_mix.current_cap +  h_unit.mix_cc;
-		near_bin_mix.used <- near_bin_mix.used + 1;
+		near_bin[1].current_cap <- near_bin[1].current_cap +  h_unit.bin_cc[1];
+		near_bin[1].used <- near_bin[1].used + 1;
 		
 		//Continue tracking types
-		near_bin_mix.waste[0] <- near_bin_mix.waste[0] + h_unit.waste_in_bin[0, 1];
-		near_bin_mix.waste[1] <- near_bin_mix.waste[1] + h_unit.waste_in_bin[1, 1]; //mix in mix
-		near_bin_mix.waste[2] <- near_bin_mix.waste[2] + h_unit.waste_in_bin[2, 1]; //pak in mix
+		near_bin[1].waste[0] <- near_bin[1].waste[0] + h_unit.waste_in_bin[0, 1];
+		near_bin[1].waste[1] <- near_bin[1].waste[1] + h_unit.waste_in_bin[1, 1]; //mix in mix
+		near_bin[1].waste[2] <- near_bin[1].waste[2] + h_unit.waste_in_bin[2, 1]; //pak in mix
 		
 				
-		h_unit.mix_cc 			<- 0.0;
-		h_unit.hh_mix_full		<- false;
-		h_unit.mix_tick 		<- 0;	
+		h_unit.bin_cc[1] 			<- 0.0;
+		h_unit.hh_bin_full[1]		<- false;
+		h_unit.bin_tick[1] 		<- 0;	
 		
 		// reseting after dump
 	 	h_unit.waste_in_bin[0, 1] <-0.0;	
@@ -1672,37 +1878,37 @@ species resident schedules: [] { //
 	 	h_unit.waste_in_bin[2, 1] <-0.0;
 		
 		q_empty_mix <- q_empty_mix + 1;	
-		h_unit.mix_max <- rnd(1.0,1.5);		
+		h_unit.bin_max[1] <- rnd(1.0,1.5);		
 	}
 		
 	action transfer_pak_out {				
-		if (((h_unit.waste_in_bin[1, 2] + h_unit.waste_in_bin[0, 2]) / h_unit.pak_cc+0.001) >= thold_wrong_pak) {		/// 0.001 secures that the division is not 0	
+		if (((h_unit.waste_in_bin[1, 2] + h_unit.waste_in_bin[0, 2]) / h_unit.bin_cc[2]+0.001) >= thold_wrong_pak) {		/// 0.001 secures that the division is not 0	
 			
-			near_bin_mix.current_cap <- near_bin_mix.current_cap +  h_unit.pak_cc;		
-			near_bin_mix.used <- near_bin_mix.used + 3;		
+			near_bin[1].current_cap <- near_bin[1].current_cap +  h_unit.bin_cc[2];		
+			near_bin[1].used <- near_bin[1].used + 3;		
 			
 			//Continue tracking types
-			near_bin_mix.waste[0] <- near_bin_mix.waste[0] + h_unit.waste_in_bin[0, 2]; //org in pak
-			near_bin_mix.waste[1] <- near_bin_mix.waste[1] + h_unit.waste_in_bin[1, 2]; //mix in pak
-			near_bin_mix.waste[2] <- near_bin_mix.waste[2] + h_unit.waste_in_bin[2, 2]; //pak in pak
+			near_bin[1].waste[0] <- near_bin[1].waste[0] + h_unit.waste_in_bin[0, 2]; //org in pak
+			near_bin[1].waste[1] <- near_bin[1].waste[1] + h_unit.waste_in_bin[1, 2]; //mix in pak
+			near_bin[1].waste[2] <- near_bin[1].waste[2] + h_unit.waste_in_bin[2, 2]; //pak in pak
 			
 		}
 		
 		else {
-			near_bin_pak.current_cap <- near_bin_pak.current_cap +  h_unit.pak_cc;		
-			near_bin_pak.used <- near_bin_pak.used + 1;
+			near_bin[2].current_cap <- near_bin[2].current_cap +  h_unit.bin_cc[2];		
+			near_bin[2].used <- near_bin[2].used + 1;
 		
 			//Continue tracking types
-			near_bin_pak.waste[0] <- near_bin_pak.waste[0] + h_unit.waste_in_bin[0, 2];
-			near_bin_pak.waste[1] <- near_bin_pak.waste[1] + h_unit.waste_in_bin[1, 2];
-			near_bin_pak.waste[2] <- near_bin_pak.waste[2] + h_unit.waste_in_bin[2, 2];
+			near_bin[2].waste[0] <- near_bin[2].waste[0] + h_unit.waste_in_bin[0, 2];
+			near_bin[2].waste[1] <- near_bin[2].waste[1] + h_unit.waste_in_bin[1, 2];
+			near_bin[2].waste[2] <- near_bin[2].waste[2] + h_unit.waste_in_bin[2, 2];
 		
 		}
 		
 		// Penalty
-		h_unit.pak_cc 			<- 	0.0;
-		h_unit.hh_pak_full		<-	false;
-		h_unit.pak_tick 		<-	0;	
+		h_unit.bin_cc[2] 			<- 	0.0;
+		h_unit.hh_bin_full[2]		<-	false;
+		h_unit.bin_tick[2] 		<-	0;	
 			
 		// reseting after dump
 	 	h_unit.waste_in_bin[0, 2] 		<-	0.0;	
@@ -1710,7 +1916,7 @@ species resident schedules: [] { //
 	 	h_unit.waste_in_bin[2, 2] 		<-	0.0;
 	 	
 	 	q_empty_pak 			<- 	q_empty_pak + 1;
-	 	h_unit.pak_max 			<-	rnd(1.0,2.0);
+	 	h_unit.bin_max[2] 			<-	rnd(1.0,2.0);
 
 				
 	}
@@ -1727,32 +1933,32 @@ species resident schedules: [] { //
 	action throw_all_out {				
 	////////// ORGANICS
 		//organics - general
-		if (h_unit.hh_org_full and h_unit.org_cc >0)  { 				
+		if (h_unit.hh_bin_full[0] and h_unit.bin_cc[0] >0)  { 				
 				do transfer_org_out; 			
 			}			
 			
 		// // Disposal when waste degreades
-		if (h_unit.org_tick/3) > rnd(4,6) {				
+		if (h_unit.bin_tick[0]/3) > rnd(4,6) {				
 				do transfer_org_out; 				
 			}	
 			
 	//////////////MIX
 		// mix - general	
-		if (h_unit.hh_mix_full and h_unit.mix_cc >0){				
+		if (h_unit.hh_bin_full[1] and h_unit.bin_cc[1] >0){				
 				do transfer_mix_out; 
 			}
 		// Disposal when waste degreades	
-		if (h_unit.mix_tick/3) > rnd(5,8) {				
+		if (h_unit.bin_tick[1]/3) > rnd(5,8) {				
 				do transfer_mix_out; 
 			}			
 			
 	///////////// PAK
 		// General disposal mechanism		
-		if (h_unit.hh_pak_full and h_unit.pak_cc >0){				
+		if (h_unit.hh_bin_full[2] and h_unit.bin_cc[2] >0){				
 				do transfer_pak_out;				
 			}	
 		// Disposal when waste degreades	
-		if (h_unit.pak_tick/3) > rnd(5,14) {				
+		if (h_unit.bin_tick[2]/3) > rnd(5,14) {				
 				do transfer_pak_out; 				
 			}	
 		
@@ -1802,29 +2008,29 @@ experiment waste_sort type: gui {
 	parameter "Clean frequently" var: clean_on category:"During simulation";
 	parameter "TPB at work" var: work_tpb category:"During simulation";
 	
-	user_command "Increase org info" category: "During simulation" color:#blue {
-		ask world {do increase_org_info;}
+	user_command "Increase info" category: "During simulation" color:#blue {
+		ask world {do increase_info;}
 	}
 	
-	user_command "Decrease org info" category: "During simulation" color:#red {
-		ask world {do decrease_org_info;}
+	user_command "Decrease info" category: "During simulation" color:#red {
+		ask world {do decrease_info;}
 	}
 	
-	user_command "Increase mix info" category: "During simulation" color:#blue {
-		ask world {do increase_mix_info;}
-	}
-	
-	user_command "Decrease mix info" category: "During simulation" color:#red {
-		ask world {do decrease_mix_info;}
-	}
-
-	user_command "Increase pak info" category: "During simulation" color:#blue {
-		ask world {do increase_pak_info;}
-	}
-	
-	user_command "Decrease pak info" category: "During simulation" color:#red {
-		ask world {do decrease_pak_info;}
-	}
+//	user_command "Increase mix info" category: "During simulation" color:#blue {
+//		ask world {do increase_mix_info;}
+//	}
+//	
+//	user_command "Decrease mix info" category: "During simulation" color:#red {
+//		ask world {do decrease_mix_info;}
+//	}
+//
+//	user_command "Increase pak info" category: "During simulation" color:#blue {
+//		ask world {do increase_pak_info;}
+//	}
+//	
+//	user_command "Decrease pak info" category: "During simulation" color:#red {
+//		ask world {do decrease_pak_info;}
+//	}
 	
 	user_command "Increase Hhold bins size" category: "During simulation" color:#blue {
 		ask world {do increase_hhold_bin_space;}
@@ -1863,14 +2069,18 @@ experiment waste_sort type: gui {
 	parameter "Select productive"   var: shape_file_productive extensions: ["shp"] in_workspace: true
 		category: "Scenario definition";	
 
-	parameter "Info in Org"   var: global_org_info min: 0 max: 100 step: 5
-		category: "Scenario definition";	
-	
-	parameter "Info in Mix"   var: global_mix_info min: 0 max: 100 step: 5
-		category: "Scenario definition";	
-		
-	parameter "Info in Pak"   var: global_pak_info min: 0 max: 100 step: 5
-		category: "Scenario definition";	
+//////////////////////////
+// TEMPORALLY IGNORE  ///
+/////////////////////////
+
+//	parameter "Info in Org"   var: global_bin_info[0] min: 0 max: 100 step: 5
+//		category: "Scenario definition";	
+//	
+//	parameter "Info in Mix"   var: global_bin_info[1] min: 0 max: 100 step: 5
+//		category: "Scenario definition";	
+//		
+//	parameter "Info in Pak"   var: global_bin_info[2] min: 0 max: 100 step: 5
+//		category: "Scenario definition";	
 		
 	parameter "Space at home mean"   var: space_mean min: 0 max: 100 step: 1
 		category: "Scenario definition";	
@@ -2106,29 +2316,29 @@ experiment only_tpb type: gui{
 	parameter "TPB at work" var: work_tpb category:"During simulation";	
 	
 	
-	user_command "Increase org info" category: "During simulation" color:#blue {
-		ask world {do increase_org_info;}
+	user_command "Increase info" category: "During simulation" color:#blue {
+		ask world {do increase_info;}
 	}
 	
-	user_command "Decrease org info" category: "During simulation" color:#red {
-		ask world {do decrease_org_info;}
+	user_command "Decrease info" category: "During simulation" color:#red {
+		ask world {do decrease_info;}
 	}
 	
-	user_command "Increase mix info" category: "During simulation" color:#blue {
-		ask world {do increase_mix_info;}
-	}
-	
-	user_command "Decrease mix info" category: "During simulation" color:#red {
-		ask world {do decrease_mix_info;}
-	}
-
-	user_command "Increase pak info" category: "During simulation" color:#blue {
-		ask world {do increase_pak_info;}
-	}
-	
-	user_command "Decrease pak info" category: "During simulation" color:#red {
-		ask world {do decrease_pak_info;}
-	}	
+//	user_command "Increase mix info" category: "During simulation" color:#blue {
+//		ask world {do increase_mix_info;}
+//	}
+//	
+//	user_command "Decrease mix info" category: "During simulation" color:#red {
+//		ask world {do decrease_mix_info;}
+//	}
+//
+//	user_command "Increase pak info" category: "During simulation" color:#blue {
+//		ask world {do increase_pak_info;}
+//	}
+//	
+//	user_command "Decrease pak info" category: "During simulation" color:#red {
+//		ask world {do decrease_pak_info;}
+//	}	
 	
 	
 	user_command "Increase Hhold bins size" category: "During simulation" color:#blue {
@@ -2173,15 +2383,19 @@ experiment only_tpb type: gui{
 		
 	parameter "Select productive"   var: shape_file_productive extensions: ["shp"] in_workspace: true
 		category: "Scenario definition";		
-		
-	parameter "Info in Org"   var: global_org_info min: 0 max: 100 step: 5
-		category: "Scenario definition";	
+
+//////////////////////////
+// TEMPORALLY IGNORE  ///
+/////////////////////////
 	
-	parameter "Info in Mix"   var: global_mix_info min: 0 max: 100 step: 5
-		category: "Scenario definition";	
-		
-	parameter "Info in Pak"   var: global_pak_info min: 0 max: 100 step: 5
-		category: "Scenario definition";	
+//	parameter "Info in Org"   var: global_bin_info[0] min: 0 max: 100 step: 5
+//		category: "Scenario definition";	
+//	
+//	parameter "Info in Mix"   var: global_bin_info[1] min: 0 max: 100 step: 5
+//		category: "Scenario definition";	
+//		
+//	parameter "Info in Pak"   var: global_bin_info[2] min: 0 max: 100 step: 5
+//		category: "Scenario definition";	
 		
 	parameter "Space at home mean"   var: space_mean min: 0 max: 100 step: 1
 		category: "Scenario definition";	

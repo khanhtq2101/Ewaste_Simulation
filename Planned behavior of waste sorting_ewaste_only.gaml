@@ -9,9 +9,67 @@
 model waste_sorting
 
 global {
+	//if the number of types of waste change, need to change the other variable about the hyperparam also (average number of devices)
+	//Lets try :) 
+	int n_ebin <- 5;
+	int n_ewaste <- 5;
 	
-	int n_waste_type <- 4;
-	int n_bin_type <- 3;
+	int n_waste_type <- n_ewaste;
+	//int n_ebin <- 3; //can not be more than 3 because of the dataset
+
+	//[[smartphone, laptop], [battery], [bulb]]
+	list<int> sub_cat <- [2, 1, 1, 1, 1];
+	
+	//Right data for final running 
+	//Might get other data for testing if needed
+	list<list<float>> avg_n_devices <- list([[1.67, 0.1], 
+											[10], 
+											[23],
+											[10],
+											[10]]);
+	list<list<float>> avg_n_new_devices <- list([[1.67/(3*104), 0.1/(3*104)], 
+											[10/104], 
+											[23/104],
+											[23/104],
+											[10/104]]);	
+	
+	//fiexed size of e-device
+	matrix<list<int>> size <- [list<int>([])] as_matrix({n_ewaste, 1});
+	
+//	matrix<bool> accepted_waste <- matrix([[true, false, true], 
+//											[true, true, false], 
+//											[false, true, true]]);
+// index: (bin type, waste type)
+	list<matrix<bool>> accepted_waste <- list([matrix([true, true, true, true, true]), 
+											matrix([false, true, true, false, false]), 
+											matrix([true, true, false, false, false]),
+											matrix([false, true, false, false, true]),
+											matrix([false, false, false, true, false])]);
+	
+	//Lifespan of device
+	matrix<list<int>> mean_device_lifespan <- [list<int>([])] as_matrix({n_ewaste, 1});		
+	matrix<list<int>> std_device_lifespan <- [list<int>([])] as_matrix({n_ewaste, 1});
+	
+	matrix<list<int>> mean_device_size <- [list<int>([])] as_matrix({n_ewaste, 1});
+	matrix<list<int>> std_device_size <- [list<int>([])] as_matrix({n_ewaste, 1});	
+	
+	// GLOBAL E-WASTE KPI FOR TRACKING
+	// Time
+    int global_time_at_home;
+   	matrix<int> global_ewaste_time_at_home <- 0 as_matrix({n_ebin, n_ewaste});
+   	
+   	//Amount of waste
+   	int global_ewaste_total <- 0;
+   	matrix<int> global_ewaste_size_total <- 0 as_matrix({n_ebin, n_ewaste});
+   	matrix<int> global_ewaste_n_total <- 0 as_matrix({n_ebin, n_ewaste});
+   	
+   	//In general bin
+   	int global_time_at_home_genbin;
+   	matrix<int> global_ewaste_time_at_home_genbin <- 0 as_matrix({n_ebin, n_ewaste});
+   	int global_ewaste_total_genbin <- 0;
+   	matrix<int> global_ewaste_size_total_genbin <- 0 as_matrix({n_ewaste, 1});
+   	matrix<int> global_ewaste_n_total_genbin <- 0 as_matrix({n_ewaste, 1});
+   	
 	
 	// SET A STARTING SEED, in case of getting the same simulation
 	//float seed <- rnd(0.0,1000.0);				
@@ -19,11 +77,18 @@ global {
 	///////////////////////////////////////////////
 	//    URBAN SITUATIONS: PLACE HOLD FOR SHAPEFILES
 	////////////////////////////////////////7
-	//file shape_file_residential 	<- file("E:/Social-Industrial Symbiosis - SIMTech/progress/week 9/getting data/HDBExistingBuilding_demo/HDBExistingBuilding_demo.shp");	
-	file shape_file_residential 	<- file("../../includes/HDBExistingBuilding_demo_100unit_2res/HDBExistingBuilding_demo.shp");
+	
+	//full units and population
+	file shape_file_residential 	<- file("../../includes/HDBExistingBuilding_scaled_down_6/HDBExistingBuilding_scaled_down_6.shp");
+	
+	//full units with 2 residents per unit
+	//file shape_file_residential 	<- file("../../includes/HDBExistingBuilding_demo/HDBExistingBuilding_demo.shp");
+	
+	//100 units with 2 residents per unit	
+	//file shape_file_residential 	<- file("../../includes/HDBExistingBuilding_demo_100unit_2res/HDBExistingBuilding_demo.shp");
 	file shape_file_productive 		<- file("../../includes/Low_Dens/office_demo.shp");	
 	//file shape_file_bin 			<- file("E:/Social-Industrial Symbiosis - SIMTech/progress/week 9/getting data/E-wasteCollectionPoints_demo/E-wasteCollectionPoints_demo.shp");	
-	file shape_file_bin				<- file("../../includes/Low_Dens/E-wasteCollectionPoints_demo.shp");
+	file shape_file_bin				<- file("../../includes/E-wasteCollectionPoints_etype/E-wasteCollectionPoints_etype.shp");
 	geometry shape 					<- envelope(shape_file_bin) + 100;	
 	
 	
@@ -178,10 +243,6 @@ global {
 
 	matrix<int> global_bin_info <- 0 as_matrix({n_waste_type, 1});
 	
-//	int global_bin_info[0] <-start_info_bin[0] min:0 max:100;
-//	int global_bin_info[1] <-start_info_bin[1] min:0 max:100;
-//	int global_bin_info[2] <-start_info_bin[2] min:0 max:100;
-	
 	////// Miss sorting waste
 	////////////////////////////////////
 	float thold_wrong_pak <- 0.3;
@@ -193,6 +254,41 @@ global {
 	////// Process of creating agents
 	///////////////////////////////////
 	init {
+		
+		//E-device type: [[Smartphone, Laptop], [Battery], [Lamp/Buld]]
+		//hyper-parameters
+		mean_device_lifespan[0] << 30;
+		mean_device_lifespan[0] << 50;
+		mean_device_lifespan[1] << 10;
+		mean_device_lifespan[2] << 10;
+		mean_device_lifespan[3] << 10;
+		mean_device_lifespan[4] << 10;
+		
+		std_device_lifespan[0] << 5;
+		std_device_lifespan[0] << 10;
+		std_device_lifespan[1] << 2;
+		std_device_lifespan[2] << 2;
+		std_device_lifespan[3] << 2;
+		std_device_lifespan[4] << 2;
+		
+		mean_device_size[0] << 1084;
+		mean_device_size[0] << 75;
+		mean_device_size[1] << 1;
+		mean_device_size[2] << 94;
+		mean_device_size[3] << 94;
+		mean_device_size[4] << 94;
+		
+		std_device_size[0] << 0;
+		std_device_size[0] << 0;
+		std_device_size[1] << 0;
+		std_device_size[2] << 0;
+		std_device_size[3] << 0;
+		std_device_size[4] << 0;
+		
+		//Deterministic size
+		size[0] <- list<int>([15, 300]);
+		size[1] <- list<int>([1]);
+		size[2] <- list<int>([20]);
 		
 		//Waste generation mean and std initialization
 		//Waste type: org, mix, pak
@@ -206,6 +302,7 @@ global {
 		waste_day_std[2] 	<- 30; 		// 178 grms per day
 		waste_day_std[3] 	<- 30; 		// 178 grms per day
 		
+		
 		loop i from: 0 to: n_waste_type - 1{
 			global_bin_info[i] <- start_info_bin[i];
 		}
@@ -217,152 +314,152 @@ global {
 		// Bins are created from shapefile
 		create bin 			from: shape_file_bin returns:  bin_list with: [
 			id:int(read ("id")), 
-			type:string(read("TYP"))
+			type:string(read("TYP")),
+			e_type: int(read("e_type"))
 			] {
 				if (type="MIX") { color <- #red;} 
 				else if (type="ORG"){ color<- #green; }
 				else {color <-#violet;}
 				
-				//assign boolean type of bin, order: [org, mix, pak]
-				if (type = "ORG") {type_bool[0] <- true;}
-				else if (type = "MIX") {type_bool[1] <- true;}
-				else {type_bool[2] <- true;}
-				
-				write type_bool;
-				write type;
+				//ASSIGN THE BINS TYPE BY ORDER:
+				type_bool[e_type] <- true;
+				type_id <- e_type;
 				
 				info_bin <- global_bin_info[0]; // min:0 max:100;
-//				info_bin[1] <- global_bin_info[1]; // min:0 max:100;
-//				info_bin[2] <- global_bin_info[2]; // min:0 max:100;
 			}
-			
-			
+				
 			
 		// The creation of residential buildings triggers the creation of people and their households.
 		// Important to notice that this comes from data written in the shapefile!
-			
+		write "Number of bin: " + length(bin_list);
+		
 		create resi_build 	from: shape_file_residential returns:  residence_list with: [			
-			tot_pop:int(read('tot_pop')),
+			tot_pop:int(read('tot_pop')) div 60,
 			hholds:int(read('h_units'))] {
+				
+				if self.tot_pop > 0 {				
+					//create resident number: 1 returns: resident_list {				
+					create resident number: self.tot_pop returns: resident_list {
+						write "Creating resident " + self.name;	
+						//INITIATE LIST OF E-DEVICES FOR EACH RESIDENT
+						int n_devices;
+						loop i from:0 to: n_ewaste - 1{
+							loop j from:0 to: sub_cat[i] - 1{
+								n_devices <- poisson(avg_n_devices[i][j]);
+								
+								e_device[i] <- e_device[i] + list_with(n_devices, int(j));
 							
-				
-				//create resident number: 1 returns: resident_list {
-				create resident number: self.tot_pop returns: resident_list {	
-
-					home_place 	<- myself;
-					work_place 	<- one_of(productive_list);
-					my_work 	<-any_location_in(work_place);
-					
-					work_place.q_people <- work_place.q_people+ 1;
-					
-					location <- any_location_in(home_place);
-					my_place <- location;
-					
-					
-					//Note: Idea to do here!!!
-					//Might use loop to assign nearest bin!!!
-					
-					matrix<float> dist_bin <- 0.0 as_matrix({n_bin_type, 1});
-					near_bin <- nil as_matrix({n_bin_type, 1});
-					
-					loop i from: 0 to: n_bin_type - 1 {
-						near_bin[i] <- bin where (each.type_bool[i] = true)		closest_to(self);
-						dist_bin[i] <- self distance_to near_bin[i]		with_precision(1);
-					}
-					
-					// Set the distance to different bins
-					//Encoded type to assign bin
-					//near_bin_org <- bin where (each.type = "ORG")		closest_to(self);
-														
-//					near_bin[0] <- bin where (each.type_bool[0] = true)		closest_to(self);
-//					dist_bin[0] <- self distance_to near_bin[0]		with_precision(1);
-//					
-//					//near_bin_mix <- bin where (each.type = "MIX")		closest_to(self);	
-//					near_bin[1] <- bin where (each.type_bool[1] = true)		closest_to(self);		
-//					dist_bin[1] <- self distance_to near_bin[1]		with_precision(1);
-//					
-//					//near_bin_pak <- bin where (each.type = "PAK")		closest_to(self);
-//					near_bin[2] <- bin where (each.type_bool[2] = true)		closest_to(self);				
-//					dist_bin[2] <- self distance_to near_bin[2]		with_precision(1);
-									
-					
-					
-					// Percentage of people doing home office
-					home_office	<- flip(home_office_proba) ? true:false;
-					
-					// Percentage of people that start out of their homes
-					// This is fixed but can be dynamically assigned in the model
-					head_work	<- flip(early_start_proba) ? true:false;
-					
+							}
+						}
+		
+						//define lifespan and size randomly		
+						loop i from:0 to: n_ewaste - 1{
+							if length(e_device[i]) > 0 {
+								loop j from:0 to: length(e_device[i]) - 1 {
+									device_endcycle[i] << int(gauss(mean_device_lifespan[i][e_device[i][j]], 
+																	std_device_lifespan[i][e_device[i][j]]));		
+									device_size[i] << int(gauss(mean_device_size[i][e_device[i][j]], 
+																	std_device_size[i][e_device[i][j]]));
+								}
+							}
+						}
+		
+						home_place 	<- myself;
+						work_place 	<- one_of(productive_list);
+						my_work 	<-any_location_in(work_place);
+						
+						work_place.q_people <- work_place.q_people+ 1;
+						
+						location <- any_location_in(home_place);
+						my_place <- location;
+						
+						//Note: Idea to do here!!!
+						//Might use loop to assign nearest bin!!!
+						
+						matrix<float> dist_bin <- 0.0 as_matrix({n_ebin, 1});
+						near_bin <- nil as_matrix({n_ebin, 1});
+						
+						//Assign shortest bin for each type of bin
+						loop i from: 0 to: n_ebin - 1 {
+							near_bin[i] <- bin where (each.type_id = i)	closest_to self;
+							dist_bin[i] <- self distance_to near_bin[i]		with_precision(1);
+						}
 										
-					// Load initial values of waste
-					loop i from: 0 to: n_waste_type - 1{
-						budget_waste[i] <- int(gauss(mean_waste_day[i], waste_day_std[i]));
-						write "Buget type " + i + ":" + budget_waste[i];
-					}
-//					budget_waste[0] <- int(gauss(mean_waste_day[0], waste_day_std[0]));
-//					budget_waste[1] <- int(gauss(mean_waste_day[1], waste_day_std[1]));
-//					budget_waste[2] <- int(gauss(mean_waste_day[2], waste_day_std[2]));
-					
-					//behaviour <- gauss(80,10);					
-					//Original: mean_dist <- (0.5*dist_bin_org +0.1*dist_bin_mix  + 0.3* dist_bin_pak) with_precision(2);	
-					
-					mean_dist <- (0.5*dist_bin[0] +0.1*dist_bin[1]  + 0.3* dist_bin[2]) with_precision(2);
-					mean_dist <- scale_dist*mean_dist;
-									
-					}
-					
-					
-			
-				// The agent building create households based on the varible hholds in the shapefile
-				create house_hold number: self.hholds returns: hhold_list {
-					
-					//Initialization of max waste
-					bin_max[1] <- rnd(1.0,1.5);// In Kg
-					bin_max[0] <- rnd(1.0,1.5);// In Kg
-					bin_max[2] <-rnd(1.0,2.0); // In Kg
+						// Percentage of people doing home office
+						home_office	<- flip(home_office_proba) ? true:false;
+						
+						// Percentage of people that start out of their homes
+						// This is fixed but can be dynamically assigned in the model
+						head_work	<- flip(early_start_proba) ? true:false;
+						
+											
+						// Load initial values of waste
+						loop i from: 0 to: n_waste_type - 1{
+							budget_waste[i] <- int(gauss(mean_waste_day[i], waste_day_std[i]));
+						}
+						//behaviour <- gauss(80,10);					
+						//Original: mean_dist <- (0.5*dist_bin_org +0.1*dist_bin_mix  + 0.3* dist_bin_pak) with_precision(2);	
+						
+						mean_dist <- mean(dist_bin);
+						//mean_dist <- (0.5*dist_bin[0] +0.1*dist_bin[1]  + 0.3* dist_bin[2]) with_precision(2);
+						
+						mean_dist <- scale_dist*mean_dist;									
+						}					
+						
 				
-					hh_bin_full[1] <- bin_cc[1] = 0 ? false : true;
-					hh_bin_full[0] <- bin_cc[1] = 0 ? false : true;
-					hh_bin_full[2] <- bin_cc[1] = 0 ? false : true;
+					// The agent building create households based on the varible hholds in the shapefile
+					create house_hold number: self.hholds returns: hhold_list {
+											
+						//Initialization of max waste
+						bin_max[1] <- rnd(1.0,1.5);// In Kg
+						bin_max[0] <- rnd(1.0,1.5);// In Kg
+						bin_max[2] <- rnd(1.0,2.0); // In Kg
 					
-					int tot_hholds <- myself.hholds;					
-					// I need to find a better solution for this last line
-					max_people <- int((myself.tot_pop /myself.hholds)) + rnd(0,1); // + rnd(0,1);	
-					address <- myself;
-					
-					address.list_of_homes <+ self;
-					// Defines the perception of space at home
-					
-					space_bin 	<- int(gauss(space_mean,space_sd));									
-					}
-
-			int roomies_id <- 0;
-			
-			// Set residents to the hholds
-			ask resident where (each.home_place = hhold_list[roomies_id].address 
-				and each.h_unit = nil 
-				and length(hhold_list) > roomies_id ) {					
+						hh_bin_full[1] <- bin_cc[1] = 0 ? false : true;
+						hh_bin_full[0] <- bin_cc[1] = 0 ? false : true;
+						hh_bin_full[2] <- bin_cc[1] = 0 ? false : true;
+						
+						int tot_hholds <- myself.hholds;					
+						// I need to find a better solution for this last line
+						max_people <- int((myself.tot_pop /myself.hholds)) + rnd(0,1); // + rnd(0,1);	
+						address <- myself;
+						
+						address.list_of_homes <+ self;
+						// Defines the perception of space at home
+						
+						//how much space one household has
+						space_bin 	<- int(gauss(space_mean,space_sd));									
+						}
+		
+				int roomies_id <- 0;
 				
-				if (length(hhold_list) > roomies_id) {
-					h_unit <- hhold_list[roomies_id];		
-					h_unit.roomies <+ self;									
-					h_unit.filling_peep  <- h_unit.filling_peep  + 1 ;	
-					roomies_id <- h_unit.max_people > h_unit.filling_peep ? roomies_id : roomies_id + 1;					
-					}
+				// Set residents to the hholds
+				ask resident where (each.home_place = hhold_list[roomies_id].address 
+					and each.h_unit = nil 
+					and length(hhold_list) > roomies_id ) {			
 					
-				if (length(hhold_list) = roomies_id) {
-					h_unit <- one_of(hhold_list);
-					h_unit.roomies <+ self;
-					h_unit.filling_peep  <- h_unit.filling_peep  + 1 ;	
-					}	
-			
-			} 
-
+					if (length(hhold_list) > roomies_id) {
+						h_unit <- hhold_list[roomies_id];		
+						h_unit.roomies <+ self;									
+						h_unit.filling_peep  <- h_unit.filling_peep  + 1 ;	
+						roomies_id <- h_unit.max_people > h_unit.filling_peep ? roomies_id : roomies_id + 1;					
+						}
+						
+					if (length(hhold_list) = roomies_id) {
+						h_unit <- one_of(hhold_list);
+						h_unit.roomies <+ self;
+						h_unit.filling_peep  <- h_unit.filling_peep  + 1 ;	
+						}
+					
+				
+				} 
+			}
 		} // closing of residential building creation
 		
 		// Make some random friends - and set my socials
+		write "Ending creating residents";
 		ask resident {
+			write self.name;
 			// This is the list of how many friends they have
 			int rand_friends <- rnd(1,10);	
 			space		<-	h_unit.space_bin;	
@@ -381,30 +478,19 @@ global {
 			my_pak_comm <- (resident - self)  where (each.near_bin[2] = self.near_bin[2]);			
 			
 			roomies_list 	<- (resident - self)  where (each.h_unit = self.h_unit);		
-			colleg_list 	<- (resident - self)  where (each.work_place = self.work_place);	
-		
+			colleg_list 	<- (resident - self)  where (each.work_place = self.work_place);
 		}
+		write "Ending ask resident";
 		// Define waste types and create them
 		ask bin {
-			if (type = 'ORG') {				
-				pop <- length(resident  where (each.near_bin[0] = self));			
-			}
-			
-			else if (type = 'MIX') {				
-				pop <- length(resident  where (each.near_bin[1] = self));
-			}
-						
-			else {					
-				pop <- length(resident  where (each.near_bin[2] = self));				
-			}
-			
-			
+			loop i from: 0 to: n_ebin - 1{
+				if (type_id = i) {				
+					pop <- length(resident  where (each.near_bin[i] = self));			
+				}
+			}		
 		}
-		
+		write "Ending Initilization";
 	} // Close initialize
-	
-
-	
 	
 	
 	// This following set of variables are inteded to be used during the simulation
@@ -421,53 +507,7 @@ global {
 		}
 	}
 	
-//	action increase_org_info {
-//		ask bin {
-//			if (info_bin[0] + 5 > 100){
-//				write "Value is greater than 100: " + info_bin[0];
-//			} else {
-//				write "Value is smaller than 100";
-//			}
-//			info_bin[0] <- info_bin[0] + 5;
-//			write "Value " + info_bin[0];
-//		}
-//	}
-//	
-//	action decrease_org_info {
-//		ask bin {
-//			info_bin[0] <- info_bin[0] - 5;
-//		}
-//	}
-//	
-//	action increase_mix_info {
-//		ask bin {
-//			if (info_bin[0] + 5 > 100){
-//				write "Value is greater than 100: " + info_bin[0];
-//			} else {
-//				write "Value is smaller than 100";
-//			}
-//			info_bin[1] <- info_bin[1] + 5;
-//		}
-//	}
-//	
-//	action decrease_mix_info {
-//		ask bin {
-//			info_bin[1] <- info_bin[1] - 5;
-//		}
-//	}
-//	
-//	action increase_pak_info {
-//		ask bin {
-//			info_bin[2] <- info_bin[2] + 5;
-//		}
-//	}
-//	
-//	action decrease_pak_info {
-//		ask bin {
-//			info_bin[2] <- info_bin[2] - 5;
-//		}
-//	}
-//	
+
 	action increase_hhold_bin_space {
 		ask house_hold {
 			space_bin <- space_bin + 2;
@@ -665,59 +705,45 @@ species house_hold schedules: []{ //
 	int filling_peep;
 	// End- initialization variables	
 	
+	//E-waste variable to track
+	matrix<list<int>> ewaste <- [list<int>([])] as_matrix({n_ewaste, 1});
+	matrix<list<int>> device_size <- [list<int>([])] as_matrix({n_ewaste, 1});
+	matrix<list<int>> begined_at_home <- [list<int>([])] as_matrix({n_ewaste, 1});
+	matrix<list<int>> time_at_home <- [list<int>([])] as_matrix({n_ewaste, 1});
+	int size_total <- 0;
+	
+	matrix<bool> accepted_options <- [false] as_matrix({n_ebin, n_ebin});
+	//tracking the shortest distance to the bins
+	matrix<float> distance_to_bins <- #infinity as_matrix({n_ebin, n_ebin});	
+	float shortest_dist <- #infinity;
+	matrix<int> shortest_bins <- [-1] as_matrix({2, 1});	
+	
+	
+	matrix<bool> waste_portfolio <- [false] as_matrix({n_ewaste, 1});
+	bool new_waste <- false;
+	
+	
 	//matrix to track waste, order: org, mix, pak
 	//row: waste type, column: bin
-	matrix<float> waste_in_bin <- 0.0 as_matrix({n_waste_type, n_bin_type}); 
-	matrix<float> bin_max <- 0.0 as_matrix({n_bin_type, 1});
-	matrix<float> bin_cc <- 0.0 as_matrix({n_bin_type, 1});
-	matrix<int> bin_tick <- 0 as_matrix({n_bin_type, 1});
+	matrix<float> waste_in_bin <- 0.0 as_matrix({n_waste_type, n_ebin}); 
+	matrix<float> bin_max <- 0.0 as_matrix({n_ebin, 1});
+	matrix<float> bin_cc <- 0.0 as_matrix({n_ebin, 1});
+	matrix<int> bin_tick <- 0 as_matrix({n_ebin, 1});
 	
-	matrix<bool> hh_bin_full <- false as_matrix({n_bin_type, 1});
-	
-	//Move to the creation
-	//float waste_max[1] <- rnd(1.0,1.5);// In Kg
-	//float waste_capacity[1];
-	//int waste_tick[1] <-0;
-	//bool hh_waste_full[1] <- waste_cc[1] = 0 ? false : true;
-	
-	//float org_in_mix;	waste_in_bin[0, 1]
-	//float org_in_mix;
-//	float mix_in_mix;	
-//	float pak_in_mix;
-	
-	//Move to the creation part
-	//float org_max <- rnd(1.0,1.5);// In Kg
-	//waste_max[0] <- rnd(1.0,1.5);// In Kg
-	
-	//float waste_capacity[0];
-	//int waste_tick[0] <-0;
-	//bool hh_waste_full[0]  <- waste_cc[0] = 0 ? false : true;
-//	float org_in_org;	
-//	float mix_in_org;	
-//	float pak_in_org;
-
-	//Move to the creation part
-	//float pak_max <-rnd(1.0,2.0); // In Kg
-	//waste_max[2] <-rnd(1.0,2.0); // In Kg
-	
-	//float waste_capacity[2];
-	//int waste_tick[2] <-0;
-	//bool hh_waste_full[2]  <- waste_cc[2] = 0 ? false : true;
-//	float org_in_pak;	
-//	float mix_in_pak;	
-//	float pak_in_pak;
+	matrix<bool> hh_bin_full <- false as_matrix({n_ebin, 1});
 	
 	int space_bin min:0 max: 100;
+	int waste_time_at_home <- 0;
 	
 	//LOOP REPLACEMENT, FOR GENERALIZATION
 	// The following reflexes that degreade waste
 	reflex decompose {
-		loop i from:0 to: n_bin_type - 1 {
+		loop i from:0 to: n_ebin - 1 {
 			if (bin_tick[i] != 0) {
 				bin_tick[i] <- bin_tick[i] + 1;
 			}
 		}
-		write "In household bin: " + waste_in_bin[3, 0] + waste_in_bin[3, 1] + waste_in_bin[3, 2];
+		//write "In household bin: " + waste_in_bin[3, 0] + waste_in_bin[3, 1] + waste_in_bin[3, 2];
 	}
 	
 //	reflex org_decompose when: (waste_tick[0] !=0) {
@@ -731,6 +757,21 @@ species house_hold schedules: []{ //
 //	reflex pak_decompose when: (waste_tick[2] !=0) {
 //		waste_tick[2] <- waste_tick[2] + 1;		
 //	}
+
+	reflex adding_time {
+		//adding multiple times by residents of the household
+		//need to check again
+		//maybe change to do by the household
+		loop i from: 0 to: length(time_at_home) - 1{
+			if length(time_at_home[i]) > 0 {
+				loop j from: 0 to: length(time_at_home[i]) - 1{
+					//adding one for all the time_at_home element, for tracking the time at home
+					time_at_home[i][j] <- time_at_home[i][j] + 1;
+					waste_time_at_home <- waste_time_at_home + 1;
+				}
+			}
+		}
+	}
 	
 }
 
@@ -750,8 +791,6 @@ species resi_build schedules: []{
 		draw shape color: color ;
 	}
 	
-	
-	
 }
 
 
@@ -762,28 +801,32 @@ species bin  schedules: [] {//
 	// Variables needed to initialize simulation
 	int id;
 	string type;
+	int e_type;
 	float current_cap;
 	int used;
 	
-	matrix<bool> type_bool <- false as_matrix({n_bin_type, 1});
+	//type in boolean encoding, still the household solid waste
+	matrix<bool> type_bool <- false as_matrix({n_ebin, 1});
 	
+	int type_id;
 	matrix<float> waste <- 0.0 as_matrix({n_waste_type, 1});
-	//matrix<float> waste <- matrix ([0.0, 0.0, 0.0]);
-
-	//float org;
-	//float waste[0];
-	//float mix;
-	//float waste[1];
-	//float pak;
-	//float waste[2];
+	//initialize by solid waste type, need to change later
+	matrix<bool> ebin_type <- type_bool; //false as_matrix({n_ebin, 1});
 	
+	matrix<int> ewaste_size_total <- 0 as_matrix({n_ewaste, 1});
+	matrix<int> ewaste_n_total <- 0 as_matrix({n_ewaste, 1});
+	matrix<int> ewaste_time_at_home <- 0 as_matrix({n_ewaste, 1});
+	
+	int ewaste_total <- 0;
+	int total_time_at_home <- 0;
+	int correct_amount <- 0;
+	int incorrect_amount <- 0;
+	
+	
+
 	//Setting boundary at the creation might work // Dont work
 	//matrix<int> info_bin <- 0 as_matrix({n_waste_type, 1});
 	int info_bin <- 0;
-	
-//	int info_bin[0] <- global_org_info min:0 max:100;
-//	int info_bin[1] <- global_mix_info min:0 max:100;
-//	int info_bin[2] <- global_pak_info min:0 max:100;
 	
 	int pop;
 		
@@ -792,12 +835,25 @@ species bin  schedules: [] {//
 		draw square(4) color: color ;
 		
 	}
-	
-	
+	reflex get_correct_amount {
+		//get the type_id of the bin (type in int number)
+		//get the accepted type of waste from the matrix accepted_waste (global)
+		//sum the one with true (matrix multiplication)
+//		write "------------";
+//		write "Total amount matrix: " + ewaste_size_total;
+//		write "Accepted matrix" + matrix<int>(accepted_waste[type_id]);
+//		write "E waste total size list in bin:" + ewaste_size_total*matrix<int>(accepted_waste[type_id]);	
+//		correct_amount <- sum(ewaste_size_total*matrix<int>(accepted_waste[type_id]));
+		incorrect_amount <- sum(ewaste_size_total) - correct_amount;
+		
+//		write "Correct amount: " + correct_amount;
+//		write "Incorrect amount: " + incorrect_amount;
+		
+	}
 }
 
 
-species collector  schedules: [] {  //
+species collector schedules: [] {  //
 	float from_prod_org;
 	float from_prod_mix;
 	float from_prod_pak;
@@ -806,7 +862,6 @@ species collector  schedules: [] {  //
 
 	
 	reflex restart when: (cycle>1) and every(3# cycle){
-	
 		// In kgrams
 		from_prod_org <- from_prod_org + (prod_build sum_of(each.bin_cc[0])) with_precision(2);
 		from_prod_mix <- from_prod_mix + (prod_build sum_of(each.bin_cc[1])) with_precision(2);
@@ -814,16 +869,10 @@ species collector  schedules: [] {  //
 		
 		// In grams
 		from_prod_total <- (from_prod_pak + from_prod_org + from_prod_mix);
-		
-		
 		ask prod_build {
 			loop i from: 0 to: n_waste_type - 1{
 				bin_cc[i] <- 0;
 			}
-//			waste_cc[0] <- 0.0;
-//			waste_cc[1] <- 0.0;
-//			waste_cc[2] <- 0.0;			
-			
 		}
 			
 	}
@@ -832,108 +881,101 @@ species collector  schedules: [] {  //
 	
 	matrix<float> from_res_waste <- 0.0 as_matrix({n_waste_type, 1});
 	
-//	float from_res_waste[0];
-//	float from_res_waste[1];
-//	float from_res_waste[2];
-	
 	//matrix to track the type of waste in bins (on street bin)
-	matrix res_waste_in_bin <- 0.0 as_matrix({n_waste_type, n_bin_type});
-//	350.53999999999996; 84.66; 0.0; 0.0
-//	248.99999999999997; 2155.6399999999994; 246.66; 0.0
-//	0.0; 49.05; 660.7; 0.0
+	matrix res_waste_in_bin <- 0.0 as_matrix({n_waste_type, n_ebin});
 	
-	//float res_waste_in_bin[0, 0]; //res_org_IN_org
-//	float res_waste_in_bin[1, 0]; //res_mix_IN_org
-//	float res_waste_in_bin[2, 0]; //res_pak_IN_org
-//	float res_waste_in_bin[0, 1]; //res_org_IN_mix
-//	float res_waste_in_bin[1, 1]; //res_mix_IN_mix
-//	float res_waste_in_bin[2, 1]; //res_pak_IN_mix
-//	float res_waste_in_bin[0, 2]; //res_org_IN_pak
-//	float res_waste_in_bin[1, 2]; //res_mix_IN_pak
-//	float res_waste_in_bin[2, 2]; //res_pak_IN_pak
-
 	matrix<float> KPI_waste <- 0.0 as_matrix({n_waste_type, 1});
-	
-//	float KPI_waste[0];
-//	float KPI_waste[1];
-//	float KPI_waste[2];
+
 	
 	float KPI_avg;
+
+	// Global e-waste KPI
+	// Time
+//    int global_time_at_home;
+//   	matrix<int> global_ewaste_time_at_home <- 0 as_matrix({n_ebin, n_ewaste});
+//   	
+//   	//Amount of waste
+//   	int global_ewaste_total <- 0;
+//   	matrix<int> global_ewaste_size_total <- 0 as_matrix({n_ebin, n_ewaste});
+//   	matrix<int> global_ewaste_n_total <- 0 as_matrix({n_ebin, n_ewaste});
+   
+	
+	reflex e_clean_frequent when: ((cycle>1) and every(collect_freq# cycle)){
+		//Adding to the global KPI, to track the environmental indicator
+		//DOUBLE CHECK AGAIN LATER: 1st time: okay
+		global_time_at_home <- global_time_at_home;
+		
+		loop i from: 0 to: n_ebin - 1 {
+			loop j from: 0 to: n_ewaste - 1{
+				//Time at home KPI
+				global_time_at_home <- global_time_at_home + 
+										(bin where (each.type_id = i) sum_of(each.ewaste_time_at_home[j]));
+				global_ewaste_time_at_home[i, j] <- global_ewaste_time_at_home[i, j]
+													+ (bin where (each.type_id = i) sum_of(each.ewaste_time_at_home[j]));
+													
+				//Amount at home KPI
+				global_ewaste_total <- global_ewaste_total + 
+										(bin where (each.type_id = i) sum_of(each.ewaste_size_total[j]));
+				global_ewaste_size_total[i, j] <- global_ewaste_size_total[i, j] +
+											(bin where (each.type_id = i) sum_of(each.ewaste_size_total[j]));
+				global_ewaste_n_total[i, j] <- global_ewaste_n_total[i, j] +
+											(bin where (each.type_id = i) sum_of(each.ewaste_n_total[j]));										
+			}
+		}
+		
+		//reset the state of bin to initial 
+		ask bin {	
+			ewaste_size_total <- 0 as_matrix({n_ebin, n_ewaste});
+			ewaste_n_total <- 0 as_matrix({n_ebin, n_ewaste});
+			ewaste_time_at_home <- 0 as_matrix({n_ebin, n_ewaste});
+			
+			ewaste_total <- 0;
+			total_time_at_home <- 0;
+			correct_amount <- 0;
+			incorrect_amount <- 0;
+		}
+	}
 	
 	reflex clean_frequent when: ((cycle>1) and every(collect_freq# cycle) and clean_on) or 
 								every(1094 #cycle) {
-		
-		write "Waste in bin from resident: \n" + res_waste_in_bin[3, 0] + " " + res_waste_in_bin[3, 1] + res_waste_in_bin[3, 2];
-		
-		//replace all by loop over all types of bin
-		
-		// In grams
-		//loop over all bin
-		loop i from: 0 to: n_bin_type - 1 {
+											
+		//Might rewrite the collection function!
+		loop i from: 0 to: n_ewaste - 1 {
+			//might be wrong with the type of the bin, because index is number of waste
+			//why to sum up all the bin with type i? what i am tracking? total waste in all the bin? 
+			//need to define what need to be tracked, and then define the function to track.
+			//REFINE LATER
+			
 			from_res_waste[i] <- from_res_waste[i] + (bin where (each.type_bool[i] = true) sum_of(each.current_cap)) with_precision(2);
 			
 			//res_waste_in_bin index order (waste type, bin type)
 			loop j from: 0 to: n_waste_type - 1{
 				res_waste_in_bin[j, i] <- res_waste_in_bin[j, i] + (bin where (each.type_bool[i] = true) sum_of(each.waste[j])) with_precision(2);
 			}
-//			res_waste_in_bin[0, i] <- res_waste_in_bin[0, i] + (bin where (each.type_bool[i] = true) sum_of(each.waste[0])) with_precision(2);
-//			res_waste_in_bin[1, i] <- res_waste_in_bin[1, i] + (bin where (each.type_bool[i] = true) sum_of(each.waste[1])) with_precision(2);
-//			res_waste_in_bin[2, i] <- res_waste_in_bin[2, i] + (bin where (each.type_bool[i] = true) sum_of(each.waste[2])) with_precision(2);
-//		
-		}
-		
-//		from_res_waste[0] <- from_res_waste[0] + (bin where (each.type='ORG') sum_of(each.current_cap)) with_precision(2);
-//		from_res_waste[1] <- from_res_waste[1] + (bin where (each.type='MIX') sum_of(each.current_cap)) with_precision(2);
-//		from_res_waste[2] <- from_res_waste[2] + (bin where (each.type='PAK') sum_of(each.current_cap)) with_precision(2);
-		
+		}	
 		
 //		// In grams
-		from_res_total <- sum(from_res_waste); //from_res_waste[0] + from_res_waste[1] + from_res_waste[2];
-//		
-//		// org
-//		res_waste_in_bin[0, 0] <- res_waste_in_bin[0, 0] + (bin where (each.type='ORG') sum_of(each.waste[0])) with_precision(2);
-//		res_waste_in_bin[1, 0] <- res_waste_in_bin[1, 0] + (bin where (each.type='ORG') sum_of(each.waste[1])) with_precision(2);
-//		res_waste_in_bin[2, 0] <- res_waste_in_bin[2, 0] + (bin where (each.type='ORG') sum_of(each.waste[2])) with_precision(2);
-//				
-//			
-//		// mix
-//		res_waste_in_bin[0, 1] <- res_waste_in_bin[0, 1] + (bin where (each.type='MIX') sum_of(each.waste[0])) with_precision(2);
-//		res_waste_in_bin[1, 1] <- res_waste_in_bin[1, 1] + (bin where (each.type='MIX') sum_of(each.waste[1])) with_precision(2);
-//		res_waste_in_bin[2, 1] <- res_waste_in_bin[2, 1] + (bin where (each.type='MIX') sum_of(each.waste[2])) with_precision(2);
+//		from_res_total <- sum(from_res_waste); //from_res_waste[0] + from_res_waste[1] + from_res_waste[2];
 //
-//			
-//		// pak
-//		res_waste_in_bin[0, 2] <- res_waste_in_bin[0, 2] + (bin where (each.type='PAK') sum_of(each.waste[0])) with_precision(2);
-//		res_waste_in_bin[1, 2] <- res_waste_in_bin[1, 2] + (bin where (each.type='PAK') sum_of(each.waste[1])) with_precision(2);
-//		res_waste_in_bin[2, 2] <- res_waste_in_bin[2, 2] + (bin where (each.type='PAK') sum_of(each.waste[2])) with_precision(2);
-
-		loop i from:0 to: n_waste_type - 1{
-			try{KPI_waste[i] <- ((res_waste_in_bin[i, i]/from_res_waste[i])*100) with_precision(2);}
-		}
-		
-//		try{KPI_waste[0] <- ((res_waste_in_bin[0, 0]/from_res_waste[0])*100) with_precision(2);}
-//		try{KPI_waste[1] <- ((res_waste_in_bin[1, 1]/from_res_waste[1])*100) with_precision(2);}	
-//		try{KPI_waste[2] <- ((res_waste_in_bin[2, 2]/from_res_waste[2])*100) with_precision(2);}
-		
-//		try{KPI_avg <- (KPI_waste[2] + KPI_waste[1] + KPI_waste[0])/3 with_precision(2);}
-		try{KPI_avg <- sum(KPI_waste)/n_waste_type with_precision(2);}
+//		loop i from:0 to: n_waste_type - 1{
+//			try{KPI_waste[i] <- ((res_waste_in_bin[i, i]/from_res_waste[i])*100) with_precision(2);}
+//		}
+//		
+//		try{KPI_avg <- sum(KPI_waste)/n_waste_type with_precision(2);}
 		
 		ask bin {
 			used 		<- 	0;
 			loop i from:0 to:length(waste) - 1{
 				waste[i] <- 0.0;
 			}
-//			waste[0] 		<- 	0.0;
-//			waste[1] 		<- 	0.0;
-//			waste[2] 		<- 	0.0;
 			current_cap <-	0.0;				
 		}
 				
 	}
 		
-	
+	//For manual cleaning during runtime
 	action empty_n_clean {		
-		loop i from: 0 to: n_bin_type - 1 {
+		loop i from: 0 to: n_ebin - 1 {
 			from_res_waste[i] <- from_res_waste[i] + (bin where (each.type_bool[i] = true) sum_of(each.current_cap)) with_precision(2);
 			
 			loop j from:0 to: n_waste_type - 1 {
@@ -945,42 +987,16 @@ species collector  schedules: [] {  //
 			res_waste_in_bin[2, i] <- from_res_waste[2, i] + (bin where (each.type_bool[i] = true) sum_of(each.waste[2])) with_precision(2);
 		}
 		
-//		from_res_waste[0] <- from_res_waste[0] + bin where (each.type='ORG') sum_of(each.current_cap)  with_precision(2);
-//		from_res_waste[1] <- from_res_waste[1] + bin where (each.type='MIX') sum_of(each.current_cap)  with_precision(2);
-//		from_res_waste[2] <- from_res_waste[2] + bin where (each.type='PAK') sum_of(each.current_cap)  with_precision(2);
-		
-//		from_res_total <- (from_res_waste[0] + from_res_waste[1] + from_res_waste[2]); //*0.001
 		from_res_total <- sum(from_res_waste);
-			
-//		// org
-//		res_waste_in_bin[0, 0] <- from_res_waste[0] + bin where (each.type='ORG') sum_of(each.waste[0])  with_precision(2);
-//		res_waste_in_bin[1, 0] <- from_res_waste[1] + bin where (each.type='ORG') sum_of(each.waste[1])  with_precision(2);
-//		res_waste_in_bin[2, 0] <- from_res_waste[2] + bin where (each.type='ORG') sum_of(each.waste[2])  with_precision(2);
-//			
-//		// org
-//		res_waste_in_bin[0, 1] <- from_res_waste[0] + bin where (each.type='MIX') sum_of(each.waste[0])  with_precision(2);
-//		res_waste_in_bin[1, 1] <- from_res_waste[1] + bin where (each.type='MIX') sum_of(each.waste[1])  with_precision(2);
-//		res_waste_in_bin[2, 1] <- from_res_waste[2] + bin where (each.type='MIX') sum_of(each.waste[2])  with_precision(2);
-//			
-//		// org
-//		res_waste_in_bin[0, 2] <- from_res_waste[0] + bin where (each.type='PAK') sum_of(each.waste[0])  with_precision(2);
-//		res_waste_in_bin[1, 2] <- from_res_waste[1] + bin where (each.type='PAK') sum_of(each.waste[1])  with_precision(2);
-//		res_waste_in_bin[2, 2] <- from_res_waste[2] + bin where (each.type='PAK') sum_of(each.waste[2])  with_precision(2);
 			
 		ask bin {
 			used 		<- 	0;
 			loop i from:0 to:length(waste) - 1{
 				waste[i] <- 0.0;
 			}
-//			waste[0] 		<- 	0.0;
-//			waste[1] 		<- 	0.0;
-//			waste[2] 		<- 	0.0;
 			current_cap <-	0.0;				
 		}								
-		
-	}
-		
-	
+	}	
 }
 
 
@@ -994,11 +1010,7 @@ species resident schedules: [] { //
 	house_hold h_unit;
 	
 	
-	matrix<bin> near_bin;
-	
-//	bin near_bin[0];
-//	bin near_bin[1];
-//	bin near_bin[2];	
+	matrix<bin> near_bin;	
 	
 	list<resident> my_org_comm;		
 	list<resident> my_mix_comm;		
@@ -1044,30 +1056,328 @@ species resident schedules: [] { //
 		
 	}
 	
+	//might ignore the case of work from home
+	
 	// The following action triggers the commute in the resident.
 	// This is mainly based on the decide_commute
 	// In the function the agent is transported into the non-resindetial place, and spends one step there.
 	action commute {
-
 		if(head_work and not(work_done)) {
 			location 	<- my_work;
 			at_work 	<- true;
 			color 		<- #blue;
 			work_done   <- true;
-			
 		}
 		else {			
 			location 	<- my_place;
 			at_work 	<- false;		
-			color 		<- # orange;	
-			
+			color 		<- # orange;			
 		}
 		
 	}
 	
 	
+	/////////////////////////////////////
+	//// E-WASTE PROTOTYPE IMPLEMENTATION
+	/////////////////////////////////////
+	
+	//device orders: [ict, lamp, battery]
+	//ict: [smartphone, laptop]
+	//lamp: [lamp]
+	//battery: [battery]
+	matrix<list<int>> e_device <- [list<int>([])] as_matrix({n_ewaste, 1});		
+	matrix<list<int>> device_endcycle <- [list<int>([])] as_matrix({n_ewaste, 1});
+	matrix<list<int>> device_size <- [list<int>([])] as_matrix({n_ewaste, 1});
+	
+	
+	//probability to transfer ewaste to bin each cycle
+	int init_throw_prob <- 70;
+	int throw_prob <- init_throw_prob;
 		
-	//////////////////////////////////////////////////////
+	float transfer_prob <- 0.0;
+	float transfer_score <- 0.0;
+	
+	float e_behaviour <- gauss(50,5) min:0.0 max:100.0;
+	float e_soc_norm <- gauss(50,5) with_precision(2) 	min:0.0		max:100.0;	
+	
+	reflex get_new_edevice {
+		int n_devices;
+		//generating list of device
+		loop i from:0 to: n_ewaste - 1{
+			loop j from:0 to: sub_cat[i] - 1{
+				n_devices <- poisson(avg_n_new_devices[i][j]);
+				
+				if n_devices > 0{
+					write "Number of new devices: " + n_devices; 
+				}
+				
+				e_device[i] <- e_device[i] + list_with(n_devices, int(j));
+				
+//				if self.name = 'resident1'{
+//					write "Number of device: " + n_devices;
+//					write "List of devices: " + e_device;
+//				}
+			}
+		}
+		
+		//DOUBLE CHECKING THE INITIALIZATION OF SIZE AND ATTRIBUTE!
+		//define lifespan and size randomly			
+		loop i from:0 to: n_ewaste - 1{
+			if length(e_device[i]) > 0 {
+				loop j from:0 to: length(e_device[i]) - 1 {
+					device_endcycle[i] << cycle + int(gauss(mean_device_lifespan[i][e_device[i][j]], 
+													std_device_lifespan[i][e_device[i][j]]));
+													
+					//define device size by distribution
+					device_size[i] << int(gauss(mean_device_size[i][e_device[i][j]], 
+													std_device_size[i][e_device[i][j]]));
+													
+				}
+			}
+		}
+	}
+	
+	action update_bin_options {
+		bool accepted <- true;
+		loop i from: 0 to: n_ebin - 1 {
+			loop j from: i to: n_ebin - 1 {
+				
+				accepted <- true;
+				//i, j are index of bins
+						
+				//if all element of waste portfolio is false i.e. no waste at home:
+				//no need to go out -> set the all option to false, then the probability is zero
+				if h_unit.waste_portfolio all_match (each = false){ 
+					accepted <- false;
+				} else {
+					loop k from: 0 to: n_ewaste - 1 {
+						if  h_unit.waste_portfolio[k]{
+							accepted <- accepted and (accepted_waste[i][k] or accepted_waste[j][k]);
+						}
+					}	
+				}
+				h_unit.accepted_options[i, j] <- accepted;
+			}
+		}
+	}
+	
+	action update_shortest_distance {
+		float d;
+		loop i from: 0 to: n_ebin - 1 {
+			loop j from: i to: n_ebin - 1 {
+				if h_unit.accepted_options[i, j]{
+					if i = j {
+						d <- self distance_to near_bin[i];
+						h_unit.distance_to_bins[i, j] <- d with_precision(2);
+					} else {
+						d <- self distance_to near_bin[i] + self distance_to near_bin[j];
+						h_unit.distance_to_bins[i, j] <- d with_precision(2);
+					}
+				} else {
+					h_unit.distance_to_bins[i, j] <- #infinity;
+				}
+			}
+		}
+		h_unit.shortest_dist <- min(h_unit.distance_to_bins);
+		loop i from: 0 to: n_ebin - 1 {
+			loop j from: i to: n_ebin - 1 {
+				if h_unit.distance_to_bins[i, j] = h_unit.shortest_dist {
+					h_unit.shortest_bins[0] <- i;
+					h_unit.shortest_bins[1] <- j;
+				}
+			}
+		}
+	}
+	
+	reflex transfer_device_home {
+		//check if a device is ended, let it at home.
+		//type i, subcategory ewaste[i][j]
+		loop i from:0 to:n_ewaste - 1{
+			//checking condition again, the same problem
+			if length(e_device[i])> 0 {
+			loop j from:0 to:length(e_device[i]) - 1{
+					if cycle = device_endcycle[i][j]{
+						
+						h_unit.new_waste <- true;
+											
+						h_unit.ewaste[i] << e_device[i][j];
+						h_unit.device_size[i] << device_size[i][j];
+						h_unit.begined_at_home[i] << cycle;
+						h_unit.time_at_home[i] << 0;
+						h_unit.size_total <- h_unit.size_total + device_size[i][j];
+						
+						//update waste portfolio of household
+						h_unit.waste_portfolio[i] <- true;					
+						
+						if self.name = 'resident1'{
+							write "--------------";
+							write "CYCLE: " + cycle;
+							write "Device size in resident: \n" + device_size +
+							"\n Device size in household: \n" + h_unit.device_size +
+							'\n Life span: ' + device_endcycle +
+							"\n Total size:" + h_unit.size_total;
+							write "Beginned cycle in household: \n" + h_unit.begined_at_home + '\n';
+						}
+					}
+				}
+			}
+		}
+		
+		//Quite okay with the distance calculation
+		//NOTE:
+		//	Optimize later, considering the variable accepted_options and distance_to_bin to species household
+		//	Because they are the same for resident of the same household
+		
+		if h_unit.new_waste {
+			do update_bin_options;
+			do update_shortest_distance;
+			do knowledge;
+			h_unit.new_waste <- false;
+		}
+				
+//		if name = 'resident1' {
+//			write "-------------------";
+//			write "Cycle " + cycle;
+//			write "\nAccepted bin option: \n" + h_unit.accepted_options;
+//			write "Distance to accepted bins: \n \t" + h_unit.distance_to_bins;
+//			write "Shortest distance: " + h_unit.shortest_dist;
+//			write "Waste portfolio: " + h_unit.waste_portfolio;
+//			write "Time at home cycle" + cycle + "\n \t" + h_unit.time_at_home;
+//			write "Total time at home: " + h_unit.waste_time_at_home;
+//		}
+	}
+
+	action empty_household_bin(int waste_type) {
+		//reset the waste at home, to make it empty		
+		h_unit.size_total <- h_unit.size_total - sum(h_unit.device_size[waste_type]);
+		
+		h_unit.device_size[waste_type] <- [];
+		h_unit.ewaste[waste_type] <- [];
+		h_unit.begined_at_home[waste_type] <- [];
+		
+		h_unit.waste_time_at_home <- h_unit.waste_time_at_home - sum(h_unit.time_at_home[waste_type]);
+		h_unit.time_at_home[waste_type] <- [];
+		
+		h_unit.waste_portfolio[waste_type] <- false;
+	}
+
+	//transfer waste type to bin type
+	action transfer_waste_to_bin (int waste_type, int bin_type) {	
+		//Total amount and amount of each type of waste on the bin
+		near_bin[bin_type].ewaste_size_total[waste_type] <- near_bin[bin_type].ewaste_size_total[waste_type] + sum(h_unit.device_size[waste_type]);
+		near_bin[bin_type].ewaste_n_total[waste_type] <- near_bin[bin_type].ewaste_n_total[waste_type] + length(h_unit.ewaste[waste_type]);
+		near_bin[bin_type].ewaste_total <- near_bin[bin_type].ewaste_total + sum(h_unit.device_size[waste_type]);
+		
+		//Tracking time at home			
+		near_bin[bin_type].ewaste_time_at_home[waste_type] <- near_bin[bin_type].ewaste_time_at_home[waste_type] + sum(h_unit.begined_at_home[waste_type]);
+		near_bin[bin_type].total_time_at_home <- near_bin[bin_type].total_time_at_home + sum(h_unit.begined_at_home[waste_type]);
+		
+		do empty_household_bin(waste_type);
+		
+	}
+	
+	action transfer_waste_to_genbin (int waste_type) {	
+		global_ewaste_size_total_genbin[waste_type] <- global_ewaste_size_total_genbin[waste_type] + sum(h_unit.device_size[waste_type]);
+		global_ewaste_total_genbin <- global_ewaste_total_genbin + sum(h_unit.device_size[waste_type]);
+		global_ewaste_n_total_genbin[waste_type] <- global_ewaste_n_total_genbin[waste_type] + length(h_unit.ewaste[waste_type]);
+		
+		//Tracking time at home			
+		global_ewaste_time_at_home_genbin[waste_type] <- global_ewaste_time_at_home_genbin[waste_type] + sum(h_unit.begined_at_home[waste_type]);
+		global_time_at_home_genbin <- global_time_at_home_genbin + sum(h_unit.begined_at_home[waste_type]);
+			
+		do empty_household_bin(waste_type);
+	}
+	
+	//transfer ewaste from household to ebin
+	reflex transfer_to_bin {
+		if flip(transfer_prob) and (true in h_unit.waste_portfolio){
+			if flip(e_behaviour) {
+				//RIGHT AVENUE: TO THE ASSIGNED BIN
+				loop i from: 0 to: n_ewaste - 1{
+					if h_unit.waste_portfolio[i] {
+							if accepted_waste[h_unit.shortest_bins[0]][i]{
+								do transfer_waste_to_bin(i, h_unit.shortest_bins[0]);
+							} else if accepted_waste[h_unit.shortest_bins[1]][i]{
+								do transfer_waste_to_bin(i, h_unit.shortest_bins[1]);
+							}
+						}
+					}
+			} else {
+				//WRONG AVENUE: GENERAL BIN
+				loop i from: 0 to: n_ewaste - 1{
+					if h_unit.waste_portfolio[i] {
+						do transfer_waste_to_genbin(i);
+					}
+				}
+			}
+			
+			//reset waste portfolio
+			do update_bin_options;
+			do update_shortest_distance;
+		}
+	}
+	
+	reflex calculate_transfer_socre {
+		transfer_score <- h_unit.waste_time_at_home + h_unit.size_total - h_unit.shortest_dist/100;
+		//TO BE DONE: analyze more carefully the range of the transfer score to decide the threshold
+		
+		transfer_prob <- transfer_score/1500;
+	}
+	
+	action e_social_norm {
+		// My waste related Community is an averaged value of the behavior of waste bins
+		my_waste_community 	<- 	wgt_org_comm*int(my_org_comm mean_of(each.e_behaviour)) +
+		 						wgt_mix_comm*int(my_mix_comm mean_of(each.e_behaviour)) +
+								wgt_pak_comm*int(my_pak_comm mean_of(each.e_behaviour));		
+			
+		// ROOMIES
+		// Takes averages of the residents that share the same house hold unit
+		roomies_beh 		<- int(roomies_list mean_of(each.e_behaviour));	
+
+		// CO-WORKERS
+		// Average of residents that share the non residental space
+		colleg_beh 			<- int(colleg_list mean_of(each.e_behaviour));		
+
+		// FRIENDS
+		// The friends behavior is an average of the friends list
+		try   { friends_beh 	<- int(friend_list mean_of (each.e_behaviour));}
+		catch { friends_beh 	<-50;}
+
+		float e_soc_norm_old 	<- e_soc_norm;
+		
+		//Adding place holdeers
+		e_soc_norm <- (gauss(10,0.5)	 +
+			gauss(friend_b,friend_se) * friends_beh +
+			gauss(colleg_b,colleg_se) * colleg_beh + 
+			gauss(roomies_b,roomies_se) * roomies_beh +
+			gauss(media_b,media_se) * media_beh +
+			gauss(waste_b,waste_se) * my_waste_community) /sn_fine_tune;
+	
+	
+					
+		float e_soc_norm_diff <- e_soc_norm - e_soc_norm_old;
+		
+		e_soc_norm <- e_soc_norm_old + 0.5 * e_soc_norm_diff;		
+	}
+
+	action calculate_behavior_score {
+		//all components are included
+		//how to define the function?
+		
+		e_behaviour <- e_soc_norm + attitude + know + pbc - h_unit.shortest_dist/100;
+		
+//		if (true in h_unit.waste_portfolio){
+//			write "Shortest distance to the assigned bin:" + h_unit.shortest_dist;
+//			write "Actual Value: " + (e_soc_norm + attitude + know + pbc - h_unit.shortest_dist/100);
+//			write "E Behavious soce of " + self.name + ": " + e_behaviour;
+//		}
+	}
+	
+	reflex behavior {
+		do calculate_behavior_score;
+	}
+		
+	/////////////////////////////////////
 	//// GET WASTE
 	/////////////////////////////////////
 	
@@ -1077,24 +1387,11 @@ species resident schedules: [] { //
 	//It might not necessary to set the boundary, might be good for runtime optimization
 	matrix<float> set_consumption <- 0.0 as_matrix({n_waste_type, 1});
 	
-//	float set_consumption[0] min:0.0 max:1.0;		
-//	float set_consumption[2] min:0.0 max:1.0;	
-//	float set_consumption[1] min:0.0 max:1.0;
-	
 	//matrix<int> budget_waste <- matrix([0, 0, 0]);
-	matrix<int> budget_waste <- 0 as_matrix({n_waste_type, 1});
-	
-	//int budget_waste[0]; //budget_org
-	//int budget_waste[1]; //budget_mix
-	//int budget_waste[2];	//budget_pak		
+	matrix<int> budget_waste <- 0 as_matrix({n_waste_type, 1});	
 	
 	//matrix<int> current_waste <- matrix([0, 0, 0]);
 	matrix<int> current_waste <- 0 as_matrix({n_waste_type, 1});
-	
-	
-//	int current_waste[0]; //current_org
-//	int current_waste[1]; //current_mix
-//	int current_waste[2]; //current_pak
 	
 	/// This is the main waste generation mechanims.
 	// The proportions of waste generation vary along the day
@@ -1107,45 +1404,21 @@ species resident schedules: [] { //
 			loop i from: 0 to: n_waste_type - 1{
 				set_consumption[i] 	<- rnd(0.00,  0.15) with_precision(2);
 			}
-//			set_consumption[2] 	<- rnd(0.00,  0.15) with_precision(2);		
-//			set_consumption[0] 	<- rnd(0.10,  0.45) with_precision(2);		
-//			set_consumption[1] 	<- rnd(0.10,  0.35) with_precision(2);
 		}
 		
 		if ( q_consume = 1 ) {
 			loop i from: 0 to: n_waste_type - 1{
 				set_consumption[i] 	<- rnd(0.00,  0.25) with_precision(2);	
 			}
-//			set_consumption[2] 	<- rnd(0.00,  0.25) with_precision(2);		
-//			set_consumption[0] 	<- rnd(0.20,  0.35) with_precision(2);		
-//			set_consumption[1] 	<- rnd(0.00,  0.25) with_precision(2);
 		}
-		
 		// As waste gets generated, transfered from the budget of waste,
 		// to the current waste of different types
-		
-//		loop i from:0 to:n_waste_type - 1{
-//			current_waste[i] 		<- int(budget_waste[i] * set_consumption_org);	
-//			budget_waste[i] 			<- budget_waste[i] - current_waste[i];
-//		}
 		
 		loop i from: 0 to: n_waste_type - 1{
 			current_waste[i] 		<- int(budget_waste[i] * set_consumption[i]);	
 			budget_waste[i] 			<- budget_waste[i] - current_waste[i];		
 		}
 		q_consume <- q_consume + 1;	
-		
-//		//////////////////////////// ORG /////////////////////////
-//		current_waste[0] 		<- int(budget_waste[0] * set_consumption[0]);	
-//		budget_waste[0] 			<- budget_waste[0] - current_waste[0];		
-//
-//		//////////////////////////// MIX /////////////////////////
-//		current_waste[1] 			<- int(budget_waste[1] * set_consumption[1]); 		
-//		budget_waste[1] 				<- budget_waste[1] - current_waste[1];
-//		
-//		//////////////////////////// PAK /////////////////////////
-//		current_waste[2] 			<- int(budget_waste[2] * set_consumption[2]); 		
-//		budget_waste[2] 				<- budget_waste[2] - current_waste[2];	
 				
 		// Q waste is added one, so next time a different amount of waste gets assigned
 	}
@@ -1156,11 +1429,7 @@ species resident schedules: [] { //
 		loop i from:0 to:n_waste_type - 1{
 			current_waste[i] <- budget_waste[i];
 		}
-		q_consume <- 0;
-		
-//		current_waste[0] <- budget_waste[0];
-//		current_waste[2] <- budget_waste[2];
-//		current_waste[1] <- budget_waste[1];	
+		q_consume <- 0;	
 		
 		// After the consumption of all waste is dones, q_consume variable is set to 0
 		// q_consume is the trigger that defines the percentage of waste to get during the day			
@@ -1174,11 +1443,6 @@ species resident schedules: [] { //
 			//CHANGE THE ORG_DAY TO MATRIX //DONE
 			budget_waste[i] <- int(gauss(mean_waste_day[i], waste_day_std[i]));
 		}
-//		budget_waste[0] <- int(gauss(mean_waste_day[0], waste_day_std[0]));
-//		budget_waste[1] <- int(gauss(mean_waste_day[1], waste_day_std[1]));
-//		budget_waste[2] <- int(gauss(mean_waste_day[2], waste_day_std[2]));
-	
-		
 	}
 	
 
@@ -1220,9 +1484,9 @@ species resident schedules: [] { //
 			
 	///////////////////////
 	// Intention
-	////////////////////////////
+	///////////////////////
 
-	float 	intention min:0.0 max: 100.0;	
+	float intention min:0.0 max: 100.0;	
 	
 	// Intention evaluation follows the same logic used to evaluate behaviour	
 		reflex evaluate_int when: every(6# cycle){		
@@ -1245,6 +1509,12 @@ species resident schedules: [] { //
 	
 	reflex evaluate_an when: (cycle>1) and every(10# cycle){
 		do social_norm;		
+		do e_social_norm;
+		if self.name = 'resident1'{
+			write "E-social norm of cycle " + cycle + ":" + e_soc_norm;
+			write "Tracking the time at home: \n" + global_ewaste_time_at_home;
+			write "Tracking the total amount: \n" + global_ewaste_size_total;
+		}
 	}
 	
 	reflex evaluate_att when: (cycle>1) and every(3# cycle){		
@@ -1254,10 +1524,13 @@ species resident schedules: [] { //
 	reflex evaluate_pbc when: (cycle>1) and every(3# cycle){
 		do pbc;
 	}
-	
-	reflex evaluate_know when: (cycle>1) and every(3# cycle){
-		do knowledge;
-	}
+
+
+	//Do not do the action knowledge every 3 cycle anymore
+	//Update knowledge if a new bins are assigned	
+//	reflex evaluate_know when: (cycle>1) and every(3# cycle){
+//		do knowledge;
+//	}
 	
 
 	////////////////////////////////////////
@@ -1295,8 +1568,6 @@ species resident schedules: [] { //
 	
 
 	action social_norm {
-
-		
 		// My waste related Community is an averaged value of the behavior of waste bins
 		my_waste_community 	<- 	wgt_org_comm*int(my_org_comm mean_of(each.behaviour)) +
 		 						wgt_mix_comm*int(my_mix_comm mean_of(each.behaviour)) +
@@ -1329,11 +1600,7 @@ species resident schedules: [] { //
 					
 		float soc_norm_diff <- soc_norm - soc_norm_old;
 		
-		soc_norm <- soc_norm_old + 0.5 * soc_norm_diff;
-
-		
-
-		
+		soc_norm <- soc_norm_old + 0.5 * soc_norm_diff;		
 	}
 	
 	
@@ -1361,28 +1628,17 @@ species resident schedules: [] { //
 	
 ////////////////////////////////////////////////
 //// Knowledge
+//// Change for the e-waste scenario
 //////////////////////////////
 	int avg_bin_info  min: 0 max: 100;
 	float know <- gauss(60,2) min:0.0 max:100.0;	
 	// This is an extension of the TPB that includes information related variables.
 	// Information in bins is an item inside the constructs
 	action knowledge {
-		
-		float know_old <- know;
-		
-//		list<int> temporal <- 0 as_
-//		loop i from:0 to:n_waste_type - 1{
-//			
-//		}	
-//		avg_bin_info <- int(list() sum_of(each.info_bin));
+		float know_old <- know;	
+		avg_bin_info <- int((near_bin[h_unit.shortest_bins[0]].info_bin +
+								near_bin[h_unit.shortest_bins[1]].info_bin) / 2);
 
-			
-//		avg_bin_info <- int((near_bin[0].info_bin[0] + 
-//		near_bin[1].info_bin[1] + 
-//		near_bin[2].info_bin[2]) /3);		
-		
-		avg_bin_info <- int(near_bin sum_of(each.info_bin) / 3);
-		
 		know <- (gauss(know_b,know_se) + 
 			gauss(info_b,info_se) * avg_bin_info) / know_fine_tune;
 
@@ -1409,29 +1665,29 @@ species resident schedules: [] { //
  // The models uses the variable hygenic (used) as the item to inside the construct
  // This construct also includes percieved space in waste bins
 
+	//Modifying for the e-waste scenario
 	action pbc {
-		
-		hygenic <- int(near_bin sum_of((each.used / each.pop)*100));
-//		hygenic 	<- int(
-//			(near_bin[0].used / near_bin[0].pop)*100 + 
-//				(near_bin[1].used/near_bin[1].pop)*100 + 
-//					(near_bin[2].used/near_bin[2].pop)*100);
+//		loop i from: 0 to: n_ebin - 1{
+//			if near_bin[i].pop = 0 {
+//				write "Bin type " + i;
+//			}
+//		}
+		hygenic <- int(near_bin sum_of((each.ewaste_total / each.pop)*100));
 				
 		float pbc_old <- pbc;
 		
+		//time is how much time resident has, not time stayed at home of edevice
+		//might use population statistics to initialize the attribute
 		pbc <- (gauss(pbc_b,pbc_se) + 
 				   gauss(hygen_b,hygen_se) * (hygenic*pbc_fine_hygenic) + 
 				   gauss(time_b,time_se)  * time + 
 				   gauss(pleasant_b,pleasant_se)  * pleasant +
 				   gauss(space_b,space_se)  * space ) / pbc_fine_tune;
-				   
-				   
+				   									//more space at home, more control over behavior
+				   									//space		<-	h_unit.space_bin; how much space one household has
 		
 		float pbc_diff <- pbc - pbc_old;
-		
-		pbc <- pbc_old + 0.2*pbc_diff;		
-		
-
+		pbc <- pbc_old + 0.2*pbc_diff;			
 	}
 
 
@@ -1444,7 +1700,8 @@ species resident schedules: [] { //
 	string beh_label;
 	int beh_level;
 	
-	matrix p_throw <- 0 as_matrix({n_waste_type, n_bin_type});
+	//throwing probability, waste i to bin j
+	matrix p_throw <- 0 as_matrix({n_waste_type, n_ebin});
 	
 	
 //	it might not necessary to set the upper bound to 100, because of the action check
@@ -1472,7 +1729,7 @@ species resident schedules: [] { //
 
 	
 	action checks {
-		
+				
 		// For Mix
 		if (p_throw[1, 1]+p_throw[1, 0]) > 100 {
 			p_throw[1, 0] <-0;
@@ -1496,14 +1753,14 @@ species resident schedules: [] { //
 		// For Pak	
 		if (p_throw[2, 2]+p_throw[2, 1]) > 100 {
 			p_throw[2, 1] <-0;
-			p_throw[2, 0] <-0;} 
-			
+			p_throw[2, 0] <-0;
+			}
 		else if ((p_throw[2, 2]+p_throw[2, 1]) = 100) {
-				p_throw[2, 0] <-0; } 
+				p_throw[2, 0] <-0; }
 								
-		else {p_throw[2, 0] <- 100 - p_throw[2, 2] - p_throw[2, 1];}
-
-		
+		else {
+			p_throw[2, 0] <- 100 - p_throw[2, 2] - p_throw[2, 1];
+		}	
 		
 	}
 	
@@ -1653,20 +1910,13 @@ species resident schedules: [] { //
 			current_waste[i] <-0;
 			waste_dumped[i] <- false;
 		}
-//		current_waste[0] <-0;
-//		current_waste[1] <-0;
-//		current_waste[2] <-0;
-//		waste_dumped[0] <- false;
-//		waste_dumped[1] <- false;
-//		waste_dumped[2] <- false;
 	}
+
 	
 	//MATRIX REPLACEMENT
 	matrix<bool> waste_dumped <- false as_matrix({n_waste_type, 1});
 	
-//	bool waste_dumped[0] <- false;
-//	bool waste_dumped[1] <- false;
-//	bool waste_dumped[2] <- false;
+
 	
 	// Throw waste inside of their households bins
 	action internal_throw_home {		
@@ -1674,6 +1924,7 @@ species resident schedules: [] { //
 		//GENERALIZATION MODIFICATION NEEDED
 		
 		////////// Throw organics
+		//write "Throwing probability: \n" + p_throw + flip(p_throw[0, 0]/100);
 		if(flip(p_throw[0, 0]/100) and not(waste_dumped[0])) {
 		//if(p_org_in_org >= rnd_num and not(org_dumped)) {
 
@@ -1797,17 +2048,7 @@ species resident schedules: [] { //
 	action throw_prod {
 		loop i from:0 to: n_waste_type - 1{
 			work_place.bin_cc[i]	<- work_place.bin_cc[i] + current_waste[i]*0.001;
-		}
-		
-//		////////// Throw organics
-//		work_place.waste_cc[0] 			<- work_place.waste_cc[0] + current_waste[0]*0.001;	
-//					
-//		////////// Throw residuals	
-//		work_place.waste_cc[1] 			<- work_place.waste_cc[1] + current_waste[1]*0.001;				
-//		
-//		////////// Throw packages
-//		work_place.waste_cc[2] 			<- work_place.waste_cc[2] + current_waste[2]*0.001;	
-		
+		}		
 	}	
 	
 	// The action of transfering waste out is divided by waste types
@@ -1974,7 +2215,8 @@ species resident schedules: [] { //
 		do main_beh;
 		
 		/// Commute is the last part of the cycle				
-		do commute;		
+		//Turn off commute for better tracking
+		//do commute;		
 		
 		////// Generate waste			
 		do gen_waste;			
@@ -1995,8 +2237,6 @@ species resident schedules: [] { //
 	}
 	
 }
-
-
 
 // This is the main experiment that shows how behavior and how is linked to the percentages of miss sorting
 experiment waste_sort type: gui {		
@@ -2210,6 +2450,23 @@ experiment waste_sort type: gui {
 		
 								
 		}
+	/////////////////
+	//E-WASTE DISPLAY
+	/////////////////
+		display "Time at home of E-devices" type:2d {
+			chart "Time at home of E-devices" type:histogram
+			 	x_serie_labels: ["ICT", "Battery", "Lamp"]
+			 	
+			series_label_position: legend
+			 {
+				datalist value:[
+					global_ewaste_time_at_home[0, 0], global_ewaste_time_at_home[1, 0], global_ewaste_time_at_home[2, 0]
+					]
+					   style:stack 
+					   legend:["Organic", "Residual", "Recyclable"]
+					   color: [	(#green),(#red), (#blue)];
+			}					
+		}	
 		
 
 	display "Waste type collected" type:2d {
@@ -2290,14 +2547,14 @@ experiment waste_sort type: gui {
 				}
 			}		
 		
-		display city  type:2d {
-			species bin aspect:base;			
-			species prod_build aspect:base;
-			species resi_build aspect:base;
-			species resident aspect:base;
-			species collector;	
-			
-		}
+//		display city  type:2d {
+//			species bin aspect:base;			
+//			species prod_build aspect:base;
+//			species resi_build aspect:base;
+//			species resident aspect:base;
+//			species collector;	
+//			
+//		}
 		
 	}
 	
